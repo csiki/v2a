@@ -100,7 +100,7 @@ def build_audio_synthetizer(f0_in, df_in, a0_in, da_in, azim0_in, dazim_in, phas
     # dazim_in = dazim_in
     azim0 = azim0_in * (np.pi / 2.)  # [-1,1] -> [-pi/2,pi/2]
     dazim = dazim_in * MAX_DAZIM / nmodulation  # [-1,1] -> [-max_dazim,max_dazim]
-    raw_dazim = tf.cumsum(dazim, axis=-1) + azim0
+    raw_dazim = tf.cumsum(dazim, axis=-1) + azim0  # FIXME dazim gets out of [-pi/2,pi/2] interval
 
     # phase
     raw_phase = phase_in  # no scaling

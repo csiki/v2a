@@ -32,6 +32,7 @@ def play_sound(soundscape):  # FIXME depricated, too low level
 #    ap-nov1-long-final-extra
 # table:
 #    table3-nov1-8seq - USED IN THESIS
+#    table3-nov1-8seq-zind
 
 
 # scp -r tothv1@triton.aalto.fi:/scratch/work/tothv1/v2a/autoencoder/draw-color/configs .
@@ -39,7 +40,7 @@ CFG_TO_MODEL = {  # TODO rewrite to be loaded from a file, to which a record is 
     'final-nov1-noh-24seq-2ss-4mod':    'img=120x160x1,attention=20,hidden=1024,z=30,seq_len=24,n_rnn=3-3,v1=False,nv1write=3,cw=0.142,fs=44100,hearing=False,sslen=2x4*8*1.2,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final',
     # 'ap-final-nov1-noh-24seq-2ss-4mod': 'img=120x160x1,attention=20,hidden=1024,z=30,seq_len=24,n_rnn=3-3,v1=False,nv1write=3,cw=0.142,fs=44100,hearing=False,sslen=2x4*8*1.2,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_apartment',
     # 'final-v1-noh-24seq-2ss-4mod':      'img=120x160x1,attention=20,hidden=1024,z=24,seq_len=24,n_rnn=3-3,v1=True,nv1write=2,cw=0.142,fs=44100,hearing=False,sslen=2x4*8*1.2,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final',
-    # 'v1-extra-26seq-4mod-cheat': 'img=120x160x1,attention=20,hidden=1024,z=45,seq_len=26,n_rnn=3-3,v1=True,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x4*8*1.2,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_extra_v1_cheat',
+    'v1-extra-26seq-4mod-cheat': 'img=120x160x1,attention=20,hidden=1024,z=45,seq_len=26,n_rnn=3-3,v1=True,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x4*8*1.2,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_extra_v1_cheat',
     # 'ap-nov1-extra-30seq2': 'img=120x160x1,attention=20,hidden=1024,z=36,seq_len=30,n_rnn=3-3,v1=False,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x3*8*1.5,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_extra_apartment2',
     'nov1-extra-4mod': 'img=120x160x1,attention=20,hidden=1024,z=45,seq_len=20,n_rnn=3-3,v1=False,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x4*8*1.5,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_extra',
     # 'v1-extra-4mod': 'img=120x160x1,attention=20,hidden=1024,z=45,seq_len=20,n_rnn=3-3,v1=True,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x4*8*1.5,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002_final_extra',

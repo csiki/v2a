@@ -121,7 +121,7 @@ class Draw:
         self.nonrecurrent_dec = network_params['nonrecurrent_dec']
         self.hearing_decoder = network_params['hearing_decoder']
         self.v1_gaussian = network_params['v1_gaussian']
-        self.n_v1_write = network_params['n_v1_write']
+        self.n_v1_write = network_params['n_v1_write'] if self.v1_gaussian else 1
         self.dtype = network_params['dtype']
         self.npdtype = network_params['npdtype']
         self.fs = network_params['fs']
@@ -215,6 +215,7 @@ class Draw:
         self.audio_gen_tensors = []
         self.soundscapes = []
         self.wr_attn_params = []
+        self.soundscape_tensors = []
         wr_attn_tens = []
         for t in range(self.sequence_length):
             # error image + original image
@@ -241,10 +242,11 @@ class Draw:
                 # soundscape = wavegan.WaveGANGenerator(z, use_batchnorm=False, train=True)
                 synth_params = audio_gen.separate_params(z, audio_params['nsoundstream'], audio_params['nmodulation'],
                                                          audio_params['varying_delta'], self.logging, self.const_phase_tens)
-                sound_scape_tensors = audio_gen.build_audio_synthetizer(*synth_params, self.fs, self.dtype, self.batch_size, audio_params)
+                soundscape_tensors = audio_gen.build_audio_synthetizer(*synth_params, self.fs, self.dtype, self.batch_size, audio_params)
+            self.soundscape_tensors.append(soundscape_tensors)
 
-            self.soundscapes.append(sound_scape_tensors['bin_sound_scape'])
-            soundscape = sound_scape_tensors['sound_scape']
+            self.soundscapes.append(soundscape_tensors['bin_sound_scape'])
+            soundscape = soundscape_tensors['sound_scape']
             if self.logging and (t == 1 or t + 1 == self.sequence_length):  # don't want to spend too much time on summary
                 tf.summary.audio('gen_audio_' + str(t), soundscape, self.fs, family='SYNTH_AUDIO')
 
@@ -268,7 +270,7 @@ class Draw:
 
                     # append dazim to hearing_repr
                     # raw_dazim is passed onto the network skipping the hearing model as the model is not binaural
-                    raw_dazim = sound_scape_tensors['raw_dazim']  # nbatch x nstream x nmodulation
+                    raw_dazim = soundscape_tensors['raw_dazim']  # nbatch x nstream x nmodulation
                     raw_dazim = hearing.binaural_noise_hearing(raw_dazim, self.azim_e)
                     raw_dazim = tf.reshape(raw_dazim, [-1, audio_params['nsoundstream'] * audio_params['nmodulation']])
 
@@ -276,10 +278,10 @@ class Draw:
                     hearing_repr = tf.concat([mfccs_hearing_repr, wg_hearing_repr, raw_dazim], axis=1)
             else:  # pass audio_gen parameters raw to the decoder
                 # gather raw network_params['n_z']audio_gen variables
-                raw_phase = sound_scape_tensors['raw_phase']
-                raw_da = sound_scape_tensors['raw_da']
-                raw_df = sound_scape_tensors['raw_df']
-                raw_dazim = hearing.binaural_noise_hearing(sound_scape_tensors['raw_dazim'], self.azim_e)  # simple binaural hearing
+                raw_phase = soundscape_tensors['raw_phase']
+                raw_da = soundscape_tensors['raw_da']
+                raw_df = soundscape_tensors['raw_df']
+                raw_dazim = hearing.binaural_noise_hearing(soundscape_tensors['raw_dazim'], self.azim_e)  # simple binaural hearing
 
                 # flatten and concat them
                 raw_dazim = tf.reshape(raw_dazim, [-1, raw_dazim.shape[1] * raw_dazim.shape[2]])
@@ -340,8 +342,8 @@ class Draw:
                 # attn_parameters: [[[seq1p1x, seq1p1y, s1p1d], [seq1p2x, seq1p2y, s1p2d]], seq2, ...], px,py,pd size: batch
                 # first attn_parameters params inside sequences have to be stacked to get the form: batch x npatch (npatch == nsoundstream)
                 for seq in self.wr_attn_params:
-                    v1_patch_pos_x = [x for x, y, _ in seq]  # delta is not needed
-                    v1_patch_pos_y = [y for x, y, _ in seq]
+                    v1_patch_pos_x = [x for x, y, _, _ in seq]  # delta is not needed
+                    v1_patch_pos_y = [y for x, y, _, _ in seq]
                     v1_patch_pos_x = tf.concat(v1_patch_pos_x, axis=-1)  # batch x npatch
                     v1_patch_pos_y = tf.concat(v1_patch_pos_y, axis=-1)
                     wr_patch_pos.append([v1_patch_pos_x, v1_patch_pos_y])
@@ -353,7 +355,7 @@ class Draw:
                     soundstream_pos = [[tf.reduce_mean(azim, axis=-1), tf.reduce_mean(f, axis=-1)] for azim, f in soundstream_pos]
             else:  # square shaped (original) writing patches, 1/seq
                 # attn_parameters: [[seq1x, seq1y, seq1d], [s2x, s2y, s2d], ...]
-                wr_patch_pos = [[x, y] for x, y, _ in self.wr_attn_params]  # remove ds
+                wr_patch_pos = [[x, y] for x, y, _, _ in self.wr_attn_params]  # remove ds
                 # because we have only one patch/seq, but soundstreams can be multiple, soundstreams have to be averaged out
                 # actually this is not necessary because tf.squared_difference below supports broadcasting
                 # soundstream_pos = [[tf.reduce_mean(azim, axis=-1, keepdims=True), tf.reduce_mean(f, axis=-1, keepdims=True)]
@@ -420,7 +422,7 @@ class Draw:
         delta = (self.min_img_dim - 1) / ((self.attention_n-1) * tf.exp(log_delta))
 
         if scope == 'write':
-            self.wr_attn_params.append([gx, gy, delta])
+            self.wr_attn_params.append([gx, gy, delta, delta])  # the last one would be the angle but not applicable here
         return self.filterbank(gx, gy, sigma2, delta) + (tf.exp(log_gamma),)
 
     def v1_attn_window(self, scope, h_dec):
@@ -454,7 +456,7 @@ class Draw:
                 tf.summary.histogram(scope_i + '_sigma2', sigma2, family=scope.upper() + '_V1_SIGMA2')
                 tf.summary.histogram(scope_i + '_delta', delta, family=scope.upper() + '_V1_DELTA')
 
-            attn_params_prep.append([gx, gy, delta])
+            attn_params_prep.append([gx, gy, delta, angle])
             filterbank = self.v1_filterbank(gx, gy, angle, sigma2, delta) + (tf.exp(log_gamma),)
             attn_arr.append(filterbank)
 
@@ -845,8 +847,11 @@ class Draw:
             os.system('ffmpeg -r {} -i tmp/{}img_{}_iter_%02d.png -i tmp/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y tmp/{}movie_{}.mp4'
                       .format(nimg_per_sec, output_prefix, i, output_prefix, i, output_prefix, i))  # mpeg4 if libx264 does not work
 
+        # concat videos together to a single video
+        # ffmpeg -f concat -safe 0 -i mylist.txt -c copy concat/table3-nov1-8seq.mp4
+
         # remove temporal images and sounds
-        os.system('rm tmp/*.png tmp/*.wav')
+        #os.system('rm tmp/*.png tmp/*.wav')
 
     def prepare_run_single(self, training_path):
         saver = tf.train.Saver(max_to_keep=2)
@@ -930,6 +935,7 @@ class Draw:
 # DATASET = '/media/viktor/0C22201D22200DF0/hand_gestures/hand_gestures_own2.hdf5'
 DATASET = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'
 
+# how to test: python3.6 aev2a.py /media/viktor/0C22201D22200DF0/hand_gestures/table3.hdf5 500 2000 table3-nov1-8seq 1e-4 test table3-nov1-8seq "img=120x160x1,attention=20,hidden=1024,z=128,seq_len=8,n_rnn=3-3,v1=False,nv1write=3,cw=1.0,fs=44100,hearing=False,sslen=3x4*10*1.5,constphase=True,mfccs=100-0.01-0.002,wg=64-0.01-0.002_table3"
 
 from config import *
 
