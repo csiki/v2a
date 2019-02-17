@@ -142,6 +142,7 @@ def build_audio_synthetizer(f0_in, df_in, a0_in, da_in, azim0_in, dazim_in, phas
         # sound_scape_r = tf.map_fn(lambda x: tf.manip.roll(x[0], x[1], axis=[0]), [sound_scape[:,:,1], itd0_roll], dtype=dtype)
         bin_sound_scape = tf.stack([sound_scape_l, sound_scape_r], axis=3)
         bin_sound_scape = tf.reduce_sum(bin_sound_scape, axis=1)
+        bin_sound_scape = bin_sound_scape / tf.reduce_max(bin_sound_scape)  # [0,1]
         #bin_sound_scape = bin_sound_scape / tf.reshape(tf.reduce_max(bin_sound_scape, axis=1) + 1e-6, [-1, 1, 2])
 
     else:  # single channel, no need for binaural sound

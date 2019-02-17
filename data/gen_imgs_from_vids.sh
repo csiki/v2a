@@ -1,6 +1,11 @@
 #!/bin/bash
 
-wildcard="own/table3/videos/*.mp4"
+if [ -z "$1" ]
+then
+    echo "Provide the path to videos as a wildcard like: gen_imgs_from_vids own/videos/*.mp4"
+else
+    wildcard="$1"
+fi
 
 j=0
 for i in $wildcard; do
