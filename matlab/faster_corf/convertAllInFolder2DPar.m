@@ -1,19 +1,16 @@
-% run like:
+% run script like:
 % myCluster = parcluster('local');
-% myCluster.NumWorkers = 7;
+% myCluster.NumWorkers = 7;  % number of threads
 % saveProfile(myCluster);
-% job = batch('convertAllInFolder2DPar', 'Pool', 6);
+% job = batch('convertAllInFolder2DPar', 'Pool', 6);  % number of threads-1
 % wait(job); delete(job); clear job;
 
-%folderpath = 'e:\img_align_celeba\'
-%wildcard = '*.jpg'
-%outpath = 'e:\img_align_celeba_corf\'
 
-folderpath = '/media/viktor/0C22201D22200DF0/hand_gestures/own/table3/bw/';
+folderpath = '/path/to/scaled/black_and_white/images/';
 wildcard = '*.png';
-outpath = '/media/viktor/0C22201D22200DF0/hand_gestures/own/table3/v1/';
+outpath = '/path/to/output/contour/images/';
 
-files=dir(fullfile(folderpath, wildcard)); % like path/to/, *.jpg
+files=dir(fullfile(folderpath, wildcard));
 parfor k=1:length(files)
     imgpath = fullfile(folderpath, files(k).name);
     imgoutpath = fullfile(outpath, strcat('a_', files(k).name));
@@ -21,12 +18,5 @@ parfor k=1:length(files)
         respmap = convertImage(imread(imgpath)); % celebA originally is 178x218
         %imwrite(imcomplement(sum(respmap, 3)), imgoutpath);
         imwrite(respmap, imgoutpath);
-    % else
-    %     display(imgoutpath);
     end
-    %if mod(k, 100) == 0
-    %    display(k);
-    %end
 end
-
-% display('done');

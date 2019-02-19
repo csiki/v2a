@@ -2,16 +2,27 @@
 
 if [ -z "$1" ]
 then
-    echo "Provide the path to videos as a wildcard like: gen_imgs_from_vids own/videos/*.mp4"
+    echo "Provide the path to the output images like: ./gen_imgs_from_vids.sh out/path/ own/videos/*.mp4"
+    exit 2
 else
-    wildcard="$1"
+    outpath="$1"
 fi
 
-j=0
-for i in $wildcard; do
-    [ -f "$i" ] || break
+if [ -z "$2" ]
+then
+    echo "Provide the path to videos as a wildcard like: ./gen_imgs_from_vids.sh out/path/ own/videos/*.mp4"
+    exit 1
+fi
 
-    ffmpeg -i "$i" -r 10 -s 160x120 -f image2 own/table3/imgs/table-$j-%05d.jpg
+fps=10  # change fps here if needed
+
+j=0
+for i in "${@:2}"; do
+
+    [ -f "$i" ] || break
+    echo "Processing: $i"
+
+    ffmpeg -i "$i" -r $fps -s 160x120 -f image2 $outpath/$j-%05d.jpg
     j=$((j+1))
 
 done
