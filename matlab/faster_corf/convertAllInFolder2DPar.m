@@ -1,4 +1,4 @@
-% run script like:
+% run script in parallel:
 % myCluster = parcluster('local');
 % myCluster.NumWorkers = 7;  % number of threads
 % saveProfile(myCluster);

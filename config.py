@@ -59,13 +59,12 @@ DEFAULT_NETWORK_PARAMS = {
     'dtype': tf.float32,
     'npdtype': np.float32,
     'attention_n': 20,
-    'n_hidden': 512,
-    'n_z': 512,  # if z_indirection is false, this value will be overwritten to be the number of audio_gen params
+    'n_hidden': 32,
+    'n_z': 32,  # if z_indirection is false, this value will be overwritten to be the number of audio_gen params
     'z_indirection': False,  # if true, the number of Gaussian noised variables can be different from the number of audio_gen params
-    'sequence_length': 20,
+    'sequence_length': 4,
     'batch_size': 64,
-    'attention_per_layer': False,  # FIXME depricate this, not used
-    'n_rnn_cells': (3, 3),  # should have a weak decoder [and strong encoder]
+    'n_rnn_cells': (2, 2),  # should have a weak decoder [and strong encoder]
     'learning_rate': 5e-5,  # initial learning rate
     'nonrecurrent_dec': False,
     'residual_encoder': True,  # only for the old models leave it true - e.g. v1 cheat 26seq 4mod
@@ -74,7 +73,7 @@ DEFAULT_NETWORK_PARAMS = {
     'n_v1_write': 3,  # ignored if v1_gaussian is false
     'kl_weight': 0.1,  # beta value on KL divergence, keep it around 0.1, 0.5
     'congr_weight': 0.1,  # congruence weight
-    'fs': 44100,  # 22050 for hearing, 44100 for non-hearing
+    'fs': 16000,  # audio sampling freq; 22050 for hearing, 44100 for non-hearing
     'audio_gen': AUDIO_GEN_PARAMS,
     'hearing': HEARING_PARAMS
 }

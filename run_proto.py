@@ -115,8 +115,8 @@ if __name__ == '__main__':
     network_params = load_config(config_name)
     network_params['batch_size'] = 1
 
-    model = Draw(nepoch, img_h, img_w, num_colors, v1_activation, crop_img, grayscale, network_params, logging=False,
-                 only_layer=only_layer, img_complement=complement, log_after=1000, save_after=2000, training=False)
+    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
+                 logging=False, log_after=1000, save_after=2000, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 

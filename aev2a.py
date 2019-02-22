@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from ops import *
 from utils import *
 from glob import glob
 import os, sys
@@ -13,109 +12,26 @@ import tcn
 import scipy.io.wavfile as wavfile
 from pprint import pprint
 
-# usage to test: python3.6 aev2a.py /media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5 500 2000 <cfg_name> 1e-5 test <test_prefix> "<model_name>"
-
-# everything (2 soundstream, 20 seqlen) but same dataset
-# everything (2 soundstream, 20 seqlen) and simple dataset
-# everything (3 soundstream, 10 seqlen) and simple dataset
-# everything (2 soundstream, 30 seqlen) and simple dataset and halffs and 16 attn
-# v1 write attention with custom w vector, long sound and 20 seq
-# original write attention
-# wavegan decoder needs update to have more filters in the first conv sweep - doubled, but conv layers became too large
-# mfcss update - done
-# decrease fs to 16k - done
-# full on relu - not better, at least for 12 seq
-# 1 seq with hearing almost converges
-# 16k fs might not be worse than 22k - not conclusive, sound sounds worse
-# try without hearing model/actual sound generation: just pass the low sample audio_gen params raw
-# (8seq-hearing) 10 depth tcn
-# skip connections: https://www.tensorflow.org/api_docs/python/tf/nn/rnn_cell/ResidualWrapper - under testing
-# longer seq for v1 drawing helps (24 better than 20, 30 better than 24)
-# cw doesn't hurt
-# origi drawer converge better
-# tconly is worse than all three hearing models
-# decreased attention patch reader/writer size for nov1 hearing models doesn't matter
-# v1 seq30 performs slightly better than nov1 seq10 (in general nov1 > v1 w/ same parameters)
-# v1 seq30 > v1 seq24
-# v1 has more difficulty with congruence loss than nov1
-# residual or properreader (20 attention) does not seem to be better for hearing models
-# decrease learning rate: 1e-5 works around the same as 1e-6
-# nonrecurrent performs bad
-# 2 ss at a time is not enough, 3 is needed at least (v1,seq30 with 3 performs better than nov1,seq20 with 2)
-# residual vs nonresidual in nov1 hearing models doesn't matter
-# tanh > lrelu
-# origiwrite performs slightly better with long sounds, and low seqlen
-# >3ss does not make sense unless w/ constant phase
-# added epsilon to sigma, see if this helps in the nan problem --> it's not necessary
-# noised azim works in itself, so it stores information (even after two layers of gaussian noising)
-# overlayed soundstreams are harder to decode by the hearing decoder
-# the higher the dimensionality of the latent variable (different from audio_gen input size), the less guaranteed the perceptual difference between sounds, but more resource to encode complicated visua info
-
-# TODO migration to github
-# remove superflous functions here and in util
-# details about how to run tensorboard
-# fast corf
-
-# TODO try next
-# "Tied weights. Use tied weights on the encoding layer and the decoding layer, ie.  W_decoding = W_encoding.T"
-
-# TODO PRIMARY
-# TODO normalize amplitude of generated sound
-# TODO training on simplest_hand dataset fails programetically, not enough images?
-# TODO realistic noise to df and da:
-# TODO    2 soundstreams of [f00,f01,f02,f03] (+) [f10,f11,f12,f13] = [f00, f01, (f02+f10)/2, (f03+f11)/2, f12, f13]
-# TODO    according to amount of overlap defined by soundscape_len_by_stream_len
-# TODO check gammatone filter under ~/v2a/local/TwoEars-1.4/AuditoryFrontEnd/src/Filters
-
-# TODO TRAINING EXTRA
-# TODO add extra 1-hot label to dataset (only uint8 index to dataset, convert to 1-hot np), add extra cost to classify label
-# TODO label is drawn to 'like' canvas in each iteration, cost computed only at the end
-# TODO    train model against finger positions as well feeding in the gradient of handpoint discrimination
-# TODO    train another model w/ apartment images + extra 1-hot labels classifying which room the pic is taken in
-# TODO    also add a bool network param whether to have the network classify the added labels or not
-
-# TODO SECONDARY
-# TODO what if image drawing could end faster? - image detail dependent sequence length?
-# TODO all other todos in autoencoder doc
-# TODO add embedding visualization: https://www.tensorflow.org/versions/r1.1/get_started/embedding_viz
-# TODO can go over the original implementation to find bugs if any in the color impl.: https://github.com/ericjang/draw/blob/master/draw.py
-# TODO update README.md, rename aev2a.py
-
 
 class Draw:
 
-    def __init__(self, nepoch, img_h, img_w, num_colors, v1_activation, crop_img, grayscale, network_params,
-                 img_normalize=True, img_complement=False, img_mode='RGB', logging=True, only_layer=None,
-                 log_after=100, save_after=1000, training=True):
+    def __init__(self, nepoch, img_h, img_w, num_colors, grayscale, network_params,
+                 logging=True, log_after=100, save_after=1000, training=True):
         self.nepoch = nepoch
         self.img_h = img_h
         self.img_w = img_w
         self.num_colors = num_colors
-        self.only_layer = only_layer
-        self.v1_activation = v1_activation
-        self.file_extension = '*.txt' if self.v1_activation else '*.jpg'
+        self.grayscale = grayscale
         self.logging = logging
         self.log_after = log_after
         self.save_after = save_after
         self.training = training
-
-        self.crop_img = crop_img
-        self.crop_h = 108
-        self.crop_w = self.crop_h
-        self.resize_h = self.img_h
-        self.resize_w = self.img_w
-
-        self.grayscale = grayscale
-        self.img_normalize = img_normalize
-        self.img_complement = img_complement
-        self.img_mode = img_mode  # doesn't apply when v1_activation=True
 
         self.attention_n = network_params['attention_n']
         self.n_hidden = network_params['n_hidden']
         self.n_z = network_params['n_z']
         self.sequence_length = network_params['sequence_length']
         self.batch_size = network_params['batch_size']
-        self.attention_per_layer = network_params['attention_per_layer']
         self.n_rnn_cells = network_params['n_rnn_cells']
         self.initial_lr = network_params['learning_rate']
         self.nonrecurrent_dec = network_params['nonrecurrent_dec']
@@ -134,11 +50,12 @@ class Draw:
         audio_params = network_params['audio_gen']
         hearing_params = network_params['hearing']
         self.min_img_dim = min([self.img_h, self.img_w])
-        self.v1_wr = tf.ones([self.batch_size, 1, 1, self.attention_n])  # not just for v1, makes the model draw only white pixels
+        self.v1_wr = tf.ones([self.batch_size, 1, 1, self.attention_n])  # makes the model draw only white pixels
         hearing_gpus = [available_gpus[0], available_gpus[0]]  # default, if only 1 gpu is available
         hearing_gpus[:] = [available_gpus[1]] * len(hearing_gpus) if len(available_gpus) > 1 else hearing_gpus
         hearing_gpus[1] = available_gpus[2] if len(available_gpus) > 2 else hearing_gpus[1]
 
+        # model name is crazy long but easy to search in tensorboard
         self.model_name_format = 'img={}x{}x{},attention={},hidden={},z={},seq_len={},n_rnn={}-{},v1={},nv1write={},cw={},fs={},hearing={},sslen={}x{}*{}*{},constphase={},mfccs={}-{}-{},wg={}-{}-{}_showoff'
         self.model_name = self.model_name_format\
             .format(self.img_h, self.img_w, self.num_colors, self.attention_n, self.n_hidden, self.n_z, self.sequence_length,
@@ -167,15 +84,16 @@ class Draw:
         self.e = tf.random_normal([self.batch_size, self.n_z], mean=0., stddev=1.)  # Qsampler noise
         self.azim_e = tf.random_normal([self.batch_size, audio_params['nsoundstream'], audio_params['nmodulation']], mean=0., stddev=1.)
 
-        # encoder/decoder RNN cells  # FIXME remove when the old models are out, encoder don't have to be residual
-        if network_params['residual_encoder']:
+        # encoder/decoder RNN cells
+        if network_params['residual_encoder']:  # encoder does not necessarily have to be residual
             self.enc_cells = [
                 tf.contrib.rnn.ResidualWrapper(tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_hidden, activation=tf.nn.tanh))
                 for _ in range(self.n_rnn_cells[0] - 1)]
-            # put a non-residual layer at the front as the input-output dimension is not the same for the first enc and dec layers
+            # non-residual layer needed at the front as the input-output dimension is not the same for the first enc and dec layers
             self.enc_cells.insert(0, tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_hidden, activation=tf.nn.tanh))
         else:
-            self.enc_cells = [tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_hidden, activation=tf.nn.tanh) for _ in range(self.n_rnn_cells[0])]
+            self.enc_cells = [tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_hidden, activation=tf.nn.tanh)
+                              for _ in range(self.n_rnn_cells[0])]
         self.rnn_enc = tf.contrib.rnn.MultiRNNCell(self.enc_cells)  # encoder
 
         # decoder part
@@ -187,7 +105,7 @@ class Draw:
             self.dec_cells.insert(0, tf.contrib.rnn.LayerNormBasicLSTMCell(self.n_hidden, activation=tf.nn.tanh))
             self.rnn_dec = tf.contrib.rnn.MultiRNNCell(self.dec_cells)  # decoder
             dec_state = self.rnn_dec.zero_state(self.batch_size, self.dtype)
-        else:  # nonrecurrent decoder
+        else:  # non-recurrent decoder
             self.rnn_dec = []
             for i in range(self.n_rnn_cells[1]):
                 self.rnn_dec.append(tf.layers.Dense(self.n_hidden, activation=tf.nn.tanh))
@@ -198,18 +116,16 @@ class Draw:
         h_dec_prev = tf.zeros((self.batch_size, self.n_hidden))
         enc_state = self.rnn_enc.zero_state(self.batch_size, self.dtype)
 
-        # init hearing models
+        # init hearing models  TODO add parameters for tcn net, wavegan, mfccs
         self.soundscape_len = audio_gen.soundscape_len(audio_params, self.fs)
         if self.hearing_decoder:  # tcn and carfac are off
             # self.carfac = tf_carfac.CARFAC(self.soundscape_len, self.fs, self.batch_size, self.dtype, self.npdtype)
             channels = [hearing_params['tcn_nhidden']] * hearing_params['tcn_nlevels']  # 1+2*(kernel_size-1)*(2^nlevels-1)
-            #self.tcn_net = tcn.TemporalConvNet(channels, hearing_params['tcn_kernel_size'], hearing_params['tcn_dropout'])
+            # self.tcn_net = tcn.TemporalConvNet(channels, hearing_params['tcn_kernel_size'], hearing_params['tcn_dropout'])
 
         # set the initial value of the canvas image, so it doesn't start from gray, but from the background color
         # take into account that this initial value is passed through a sigmoid first, hence originally sigmoid(0)=0.5
-        initial_canvas_val = 6  # sigmoid(-6)=0.0024
-        if self.img_complement:
-            initial_canvas_val = -6
+        initial_canvas_val = -6  # sigmoid(-6) = 0.0024
 
         x = tf.reshape(self.images, [-1, self.img_h * self.img_w * self.num_colors])
         self.audio_gen_tensors = []
@@ -220,7 +136,7 @@ class Draw:
         for t in range(self.sequence_length):
             # error image + original image
             # -3 substracted, so the first image x_hat is black
-            c_prev = tf.zeros((self.batch_size, self.img_h * self.img_w * self.num_colors)) - initial_canvas_val \
+            c_prev = tf.zeros((self.batch_size, self.img_h * self.img_w * self.num_colors)) + initial_canvas_val \
                 if t == 0 else self.cs[t-1]
             x_hat = x - tf.sigmoid(c_prev)
             # read the image
@@ -312,11 +228,7 @@ class Draw:
         self.generation_loss = tf.nn.l2_loss(x - self.generated_images)
         if self.logging:
             tf.summary.scalar("gen_loss", self.generation_loss)
-            if self.v1_activation and not self.grayscale:
-                maxed_generated_images = tf.reduce_max(tf.reshape(self.generated_images, [-1, self.img_h, self.img_w, self.num_colors]), 3)
-                tf.summary.image("gen_img", maxed_generated_images)
-            else:
-                tf.summary.image("gen_img", tf.reshape(self.generated_images, [-1, self.img_h, self.img_w, self.num_colors]))
+            tf.summary.image("gen_img", tf.reshape(self.generated_images, [-1, self.img_h, self.img_w, self.num_colors]))
 
         # latent loss
         kl_terms = [0]*self.sequence_length
@@ -425,17 +337,6 @@ class Draw:
             self.wr_attn_params.append([gx, gy, delta, delta])  # the last one would be the angle but not applicable here
         return self.filterbank(gx, gy, sigma2, delta) + (tf.exp(log_gamma),)
 
-    def v1_attn_window(self, scope, h_dec):
-        with tf.variable_scope(scope, reuse=self.share_parameters):
-            parameters = dense(h_dec, self.n_hidden, 6)
-        gx_, gy_, log_sigma2, log_delta, log_gamma, angle = tf.split(parameters, 6, 1)
-        gx = (self.img_w + 1) / 2 * (gx_ + 1)
-        gy = (self.img_h + 1) / 2 * (gy_ + 1)
-        sigma2 = tf.exp(log_sigma2)
-        delta = (self.min_img_dim - 1) / ((self.attention_n - 1) * tf.exp(log_delta))
-
-        return self.v1_filterbank(gx, gy, angle, sigma2, delta) + (tf.exp(log_gamma),)
-
     def multi_v1_attn_window(self, scope, h_dec):  # writing attention window
         attn_arr = []
         attn_params_prep = []
@@ -526,20 +427,6 @@ class Draw:
 
     def read_attention(self, x, x_hat, h_dec_prev):
 
-        # FIXME not used at all, should not read in patches of lines in general
-        def v1_filter_img_layer(img_layer, Fx, Fy, gamma):
-            Fx = tf.reshape(Fx, [self.batch_size, self.attention_n, 1, -1])
-            Fy = tf.reshape(Fy, [self.batch_size, self.attention_n, -1, 1])
-            Fxy = tf.matmul(Fy, Fx)
-            img_layer = tf.reshape(img_layer, [-1, 1, self.img_h, self.img_w])
-
-            # img*lay1 + img*lay2 + ... = img*(lay1 + lay2 + ...)
-
-            glimpse = tf.multiply(img_layer, Fxy)
-            glimpse = tf.reduce_sum(glimpse, axis=[2, 3])
-
-            return glimpse * gamma
-
         def filter_img_layer(img_layer, Fx, Fy, gamma):
             Fxt = tf.transpose(Fx, perm=[0, 2, 1])
             img_layer = tf.reshape(img_layer, [-1, self.img_h, self.img_w])
@@ -575,32 +462,17 @@ class Draw:
             # finally scale this glimpse w/ the gamma parameter
             return glimpse * tf.reshape(gamma, [-1, 1])
 
-        # regular grid like attention window used to read (v1 gaussian is used only at writing)
-        if not self.attention_per_layer:
-            if self.grayscale:
-                Fx, Fy, gamma = self.attn_window("read_layer", h_dec_prev)
-                x = filter_img_layer(x, Fx, Fy, gamma)
-                x_hat = filter_img_layer(x_hat, Fx, Fy, gamma)
-                return tf.concat([x, x_hat], 1)
-            else:  # multi color
-                Fx, Fy, gamma = self.attn_window("read", h_dec_prev)
-                x = filter_img(x, Fx, Fy, gamma)
-                x_hat = filter_img(x_hat, Fx, Fy, gamma)
-                return tf.concat([x, x_hat], 1)
-        else:  # separate attention mechanism for each color or layer
-            img = tf.reshape(x, [-1, self.img_h, self.img_w, self.num_colors])
-            img = tf.transpose(img, [3, 0, 1, 2])
-            img_hat = tf.reshape(x_hat, [-1, self.img_h, self.img_w, self.num_colors])
-            img_hat = tf.transpose(img_hat, [3, 0, 1, 2])
-
-            glimpses = []
-            for l in range(self.num_colors):
-                Fx, Fy, gamma = self.attn_window("read_layer_" + str(l), h_dec_prev)
-                x = filter_img_layer(img[l, :, :, :], Fx, Fy, gamma)
-                x_hat = filter_img_layer(img_hat[l, :, :, :], Fx, Fy, gamma)
-                glimpses.extend([x, x_hat])
-
-            return tf.concat(glimpses, 1)
+        # regular grid like attention window used to read (v1 gaussian patches are used only at writing)
+        if self.grayscale:
+            Fx, Fy, gamma = self.attn_window("read_layer", h_dec_prev)
+            x = filter_img_layer(x, Fx, Fy, gamma)
+            x_hat = filter_img_layer(x_hat, Fx, Fy, gamma)
+            return tf.concat([x, x_hat], 1)
+        else:  # multi color
+            Fx, Fy, gamma = self.attn_window("read", h_dec_prev)
+            x = filter_img(x, Fx, Fy, gamma)
+            x_hat = filter_img(x_hat, Fx, Fy, gamma)
+            return tf.concat([x, x_hat], 1)
 
     # encode an attention patch
     def encode(self, prev_state, image):
@@ -648,11 +520,7 @@ class Draw:
             # tested, doesn't add much if w is variable, in fact, it draws black as well
             # with tf.variable_scope("writeW", reuse=self.share_parameters):
             #     w = dense(hidden_layer, self.n_hidden, self.attention_n)
-
-            if self.n_v1_write > 1:
-                attn_arr = self.multi_v1_attn_window("write", hidden_layer)
-            else:
-                attn_arr = [self.v1_attn_window("write", hidden_layer)]
+            attn_arr = self.multi_v1_attn_window("write", hidden_layer)
 
             wrs = []
             for Fx, Fy, gamma in attn_arr:
@@ -678,84 +546,43 @@ class Draw:
         w = tf.reshape(w, [self.batch_size, self.attention_n, self.attention_n, self.num_colors])
         w_t = tf.transpose(w, perm=[3, 0, 1, 2])
 
-        if not self.attention_per_layer:
-            Fx, Fy, gamma = self.attn_window("write", hidden_layer)
-            # color1, color2, color3, color1, color2, color3, etc.
-            w_array = tf.reshape(w_t, [self.num_colors * self.batch_size, self.attention_n, self.attention_n])
-            Fx_array = tf.tile(Fx, [self.num_colors, 1, 1])
-            Fy_array = tf.tile(Fy, [self.num_colors, 1, 1])
+        Fx, Fy, gamma = self.attn_window("write", hidden_layer)
+        # color1, color2, color3, color1, color2, color3, etc.
+        w_array = tf.reshape(w_t, [self.num_colors * self.batch_size, self.attention_n, self.attention_n])
+        Fx_array = tf.tile(Fx, [self.num_colors, 1, 1])
+        Fy_array = tf.tile(Fy, [self.num_colors, 1, 1])
 
-            Fyt = tf.transpose(Fy_array, perm=[0, 2, 1])
-            # [vert, attn_n] * [attn_n, attn_n] * [attn_n, horiz]
-            wr = tf.matmul(Fyt, tf.matmul(w_array, Fx_array))
-            # sep_colors = tf.reshape(wr, [self.batch_size, self.num_colors, self.img_size**2])
-            wr = tf.reshape(wr, [self.num_colors, self.batch_size, self.img_h, self.img_w])
-            wr = tf.transpose(wr, [1, 2, 3, 0])
-            wr = tf.reshape(wr, [self.batch_size, self.img_h * self.img_w * self.num_colors])
+        Fyt = tf.transpose(Fy_array, perm=[0, 2, 1])
+        # [vert, attn_n] * [attn_n, attn_n] * [attn_n, horiz]
+        wr = tf.matmul(Fyt, tf.matmul(w_array, Fx_array))
+        # sep_colors = tf.reshape(wr, [self.batch_size, self.num_colors, self.img_size**2])
+        wr = tf.reshape(wr, [self.num_colors, self.batch_size, self.img_h, self.img_w])
+        wr = tf.transpose(wr, [1, 2, 3, 0])
+        wr = tf.reshape(wr, [self.batch_size, self.img_h * self.img_w * self.num_colors])
 
-            return wr * tf.reshape(1.0 / gamma, [-1, 1])
-        else:
-            wrs = []
-            for l in range(self.num_colors):
-                Fx, Fy, gamma = self.attn_window("write_layer_" + str(l), hidden_layer)
-                Fyt = tf.transpose(Fy, perm=[0, 2, 1])
-                wr = tf.matmul(Fyt, tf.matmul(w_t[l, :, :, :], Fx))  # (batch_size, h, w)
-                wr = tf.reshape(wr, [self.batch_size, self.img_h * self.img_w]) * tf.reshape(1.0 / gamma, [-1, 1])
-                wr = tf.reshape(wr, [self.batch_size, self.img_h, self.img_w, 1])
-                wrs.append(wr)
-
-            return tf.reshape(tf.concat(wrs, 3), [self.batch_size, self.img_h * self.img_w * self.num_colors])
+        return wr * tf.reshape(1.0 / gamma, [-1, 1])
 
     def get_data(self, dataset):
-        is_hdf5 = 'hdf5' in dataset
-        if is_hdf5:
-            return tables.open_file(dataset, mode='r'), is_hdf5
-        else:
-            return np.array(glob(os.path.join(dataset, self.file_extension))), is_hdf5
+        return tables.open_file(dataset, mode='r')
 
-
-    def get_batch_files(self, data_files, indices=None, batch_size=None, start_stop_index=None):
-        batch_size = self.batch_size if batch_size is None else batch_size
-        if indices is None and start_stop_index is None:
-            indices = np.random.randint(0, len(data_files), (batch_size,))
-            fs = data_files[indices]
-        elif start_stop_index is not None:
-            fs = data_files[start_stop_index[0]:start_stop_index[1]]
-        else:
-            fs = data_files[indices]
-
-        return np.array([get_image(sample_file, self.crop_h, self.crop_w, self.crop_img, self.resize_h, self.resize_w,
-                                   self.img_mode, self.img_normalize, self.img_complement, self.grayscale,
-                                   self.v1_activation, self.only_layer, False) for sample_file in fs]).astype(self.npdtype)
-
-    def get_hdf5_batch(self, data, indices=None, batch_size=None, start_stop_index=None):
+    def get_batch(self, data, indices=None, batch_size=None, start_stop_index=None):
         batch_size = self.batch_size if batch_size is None else batch_size
         if indices is None and start_stop_index is None:
             indices = np.random.randint(0, data.shape[0], (batch_size,))
 
         elif start_stop_index is not None:
-            return np.array(
-                [get_image(d, self.crop_h, self.crop_w, self.crop_img, self.resize_h, self.resize_w,
-                           self.img_mode, self.img_normalize, self.img_complement, self.grayscale,
-                           self.v1_activation, self.only_layer, True)
-                 for d in data[start_stop_index[0]:start_stop_index[1]]]).astype(self.npdtype)
+            return np.array([get_image(d, self.grayscale)
+                             for d in data[start_stop_index[0]:start_stop_index[1]]]).astype(self.npdtype)
 
         return np.array(
-            [get_image(data[i], self.crop_h, self.crop_w, self.crop_img, self.resize_h, self.resize_w,
-                       self.img_mode, self.img_normalize, self.img_complement, self.grayscale,
-                       self.v1_activation, self.only_layer, True) for i in indices]).astype(self.npdtype)
-
-    def get_batch(self, data, is_hdf5, indices=None, batch_size=None, start_stop_index=None):
-        if is_hdf5:
-            return self.get_hdf5_batch(data, indices, batch_size, start_stop_index)
-        return self.get_batch_files(data, indices, batch_size, start_stop_index)
+            [get_image(data[i], self.grayscale) for i in indices]).astype(self.npdtype)
 
     def train(self, dataset, restore=True, model_name=None):
         self.model_name = model_name or self.model_name
 
-        data, is_hdf5 = self.get_data(dataset)
-        base = self.get_batch(data.root.train_img, is_hdf5, np.arange(0, self.batch_size))
-        data_len = data.root.train_img.shape[0] if is_hdf5 else len(data)
+        data = self.get_data(dataset)
+        base = self.get_batch(data.root.train_img, np.arange(0, self.batch_size))
+        data_len = data.root.train_img.shape[0]
 
         ims(os.path.join(os.getcwd(), 'results', self.model_name, 'base.png'), merge_color(base, [8, self.batch_size // 8]))
 
@@ -771,7 +598,7 @@ class Draw:
             nbatch = (data_len // self.batch_size) - 2
             for i in range(nbatch):
 
-                batch_images = self.get_batch(data.root.train_img, is_hdf5)  # LOAD RANDOM BATCHES
+                batch_images = self.get_batch(data.root.train_img)  # LOAD RANDOM BATCHES
                 cs, attn_params, gen_loss, lat_loss, _, glob_step = self.sess.run([self.cs, self.wr_attn_params, self.generation_loss,
                                                                                    self.latent_loss, self.train_op, self.global_step],
                                                                                   feed_dict={self.images: batch_images})
@@ -784,7 +611,7 @@ class Draw:
                     self.writer.add_summary(s, glob_step)
 
                     # run on test set
-                    batch_images = self.get_batch(data.root.test_img, is_hdf5, start_stop_index=(0, self.batch_size))
+                    batch_images = self.get_batch(data.root.test_img, start_stop_index=(0, self.batch_size))
                     test_gen_loss, test_lat_loss = self.sess.run([self.generation_loss, self.latent_loss], feed_dict={self.images: batch_images})
                     sg = tf.Summary(value=[tf.Summary.Value(tag='test_genloss', simple_value=test_gen_loss)])
                     sl = tf.Summary(value=[tf.Summary.Value(tag='test_latloss', simple_value=test_lat_loss)])
@@ -811,13 +638,13 @@ class Draw:
                         ims(os.path.join(os.getcwd(), 'results', self.model_name, str(e)+'-'+str(i)+'-step-'+str(cs_iter)+'.png'),
                             merge_color(results_square, [8, self.batch_size // 8]))
 
-    def test(self, dataset, training_path=None, model_name=None, output_prefix=''):
+    def gen_vids(self, dataset, training_path=None, model_name=None, output_prefix=''):
         # pass random batch, save output images and sounds, concat images and add sound w/ ffmpeg
         self.model_name = model_name or self.model_name
         training_path = training_path or os.path.join(os.getcwd(), 'training')
 
-        data, is_hdf5 = self.get_data(dataset)
-        batch = self.get_batch(data.root.test_img, is_hdf5, np.arange(0, self.batch_size))
+        data = self.get_data(dataset)
+        batch = self.get_batch(data.root.test_img, np.arange(0, self.batch_size))
         saver = tf.train.Saver(max_to_keep=2)
         saver.restore(self.sess, tf.train.latest_checkpoint(os.path.join(training_path, self.model_name)))
 
@@ -847,11 +674,11 @@ class Draw:
             os.system('ffmpeg -r {} -i tmp/{}img_{}_iter_%02d.png -i tmp/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y tmp/{}movie_{}.mp4'
                       .format(nimg_per_sec, output_prefix, i, output_prefix, i, output_prefix, i))  # mpeg4 if libx264 does not work
 
-        # concat videos together to a single video
+        # concat videos together to a single video; first fill mylist.txt with the list of videos
         # ffmpeg -f concat -safe 0 -i mylist.txt -c copy concat/table3-nov1-8seq.mp4
 
         # remove temporal images and sounds
-        #os.system('rm tmp/*.png tmp/*.wav')
+        os.system('rm tmp/*.png tmp/*.wav')
 
     def prepare_run_single(self, training_path):
         saver = tf.train.Saver(max_to_keep=2)
@@ -861,13 +688,15 @@ class Draw:
         batch = np.expand_dims(img, 0)
 
         if canvas_imgs_needed:
-            cs, gen_imgs, soundscapes = self.sess.run([self.cs, self.generated_images, self.whole_soundscape], feed_dict={self.images: batch})
+            cs, gen_imgs, soundscapes = self.sess.run([self.cs, self.generated_images, self.whole_soundscape],
+                                                      feed_dict={self.images: batch})
             cs = 1.0 / (1.0 + np.exp(-np.array(cs)))  # x_recons=sigmoid(canvas)
             cs = np.reshape(cs, [self.sequence_length, self.img_h, self.img_w])
             return soundscapes[0], np.reshape(gen_imgs[0], [self.img_h, self.img_w]), cs
 
         if gen_img_needed:
-            soundscapes, gen_imgs = self.sess.run([self.whole_soundscape, self.generated_images], feed_dict={self.images: batch})
+            soundscapes, gen_imgs = self.sess.run([self.whole_soundscape, self.generated_images],
+                                                  feed_dict={self.images: batch})
             return soundscapes[0], np.reshape(gen_imgs[0], [self.img_h, self.img_w])
 
         soundscapes = self.whole_soundscape.eval(feed_dict={self.images: batch}, session=self.sess)
@@ -876,17 +705,13 @@ class Draw:
     def view(self, dataset, model_name=None):
         self.model_name = model_name or self.model_name
 
-        data, is_hdf5 = self.get_data(dataset)
-        base = self.get_batch(data.root.test_img, is_hdf5, np.arange(0, self.batch_size))
+        data = self.get_data(dataset)
+        base = self.get_batch(data.root.test_img, np.arange(0, self.batch_size))
 
         # base += 1
         # base /= 2
 
         ims(os.path.join(os.getcwd(), 'results', self.model_name, 'base.png'), merge_color(base, [8, self.batch_size // 8]))
-        if self.v1_activation:
-            for l in range(self.num_colors):
-                ims(os.path.join(os.getcwd(), 'results', self.model_name, 'base_{}.png'.format(l)),
-                    merge_color(base[:, :, :, l], [8, self.batch_size // 8]))
 
         saver = tf.train.Saver(max_to_keep=2)
         saver.restore(self.sess, tf.train.latest_checkpoint(os.path.join(os.getcwd(), 'training', self.model_name)))
@@ -901,58 +726,26 @@ class Draw:
             results = cs[cs_iter]
             results_square = np.reshape(results, [-1, self.img_h, self.img_w, self.num_colors])
 
-            # # add frame FIXME adds attention parameters on image that you need now
-            # for i in range(self.batch_size):
-            #     center_x = int(attn_params[cs_iter][0][i][0])
-            #     center_y = int(attn_params[cs_iter][1][i][0])
-            #     distance = int(attn_params[cs_iter][2][i][0])
-            #
-            #     size = 2
-            #
-            #     for x in range(3):
-            #         for y in range(3):
-            #             nx = x - 1
-            #             ny = y - 1
-            #
-            #             xpos = center_x + nx*distance
-            #             ypos = center_y + ny*distance
-            #
-            #             xpos2 = min(max(0, xpos + size), 63)
-            #             ypos2 = min(max(0, ypos + size), 63)
-            #
-            #             xpos = min(max(0, xpos), 63)
-            #             ypos = min(max(0, ypos), 63)
-            #
-            #             results_square[i,xpos:xpos2,ypos:ypos2,0] = 0
-            #             results_square[i,xpos:xpos2,ypos:ypos2,1] = 1
-            #             results_square[i,xpos:xpos2,ypos:ypos2,2] = 0
-
             ims(os.path.join(os.getcwd(), 'results', self.model_name, 'view-clean-step-' + str(cs_iter) + '.png'),
                 merge_color(results_square, [8, self.batch_size // 8]))
 
-
-# DATASET = '/media/viktor/0C22201D22200DF0/celeba_corf2.hdf5'
-# DATASET = '/media/viktor/0C22201D22200DF0/hand_gestures/hand_gestures_own2.hdf5'
-DATASET = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'
-
-# how to test: python3.6 aev2a.py /media/viktor/0C22201D22200DF0/hand_gestures/table3.hdf5 500 2000 table3-nov1-8seq 1e-4 test table3-nov1-8seq "img=120x160x1,attention=20,hidden=1024,z=128,seq_len=8,n_rnn=3-3,v1=False,nv1write=3,cw=1.0,fs=44100,hearing=False,sslen=3x4*10*1.5,constphase=True,mfccs=100-0.01-0.002,wg=64-0.01-0.002_table3"
 
 from config import *
 
 
 if __name__ == '__main__':
 
-    print('TENSORFLOW VERSION:', tf.__version__, file=sys.stderr)
-
     # args: dataset_path, log_after, save_after
-    dataset = sys.argv[1] if len(sys.argv) > 1 else DATASET
+    dataset = sys.argv[1]  # path to dataset
     log_after = int(sys.argv[2]) if len(sys.argv) > 2 else 100
     save_after = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
     config_name = sys.argv[4] if len(sys.argv) > 4 else None
     lr = float(sys.argv[5]) if len(sys.argv) > 5 else None
-    train_or_test = sys.argv[6] == 'train' if len(sys.argv) > 6 else True  # training by default
+    train_or_test = sys.argv[6] == 'train' if len(sys.argv) > 6 else True
     test_out_prefix = sys.argv[7] if len(sys.argv) > 7 else ''
     model_to_test_name = sys.argv[8] if len(sys.argv) > 8 else None
+
+    print('TENSORFLOW VERSION:', tf.__version__, file=sys.stderr)
     print('DATA SET:', dataset, file=sys.stderr)
 
     # create necessary folders
@@ -963,17 +756,13 @@ if __name__ == '__main__':
     if not os.path.exists('results'):
         os.mkdir('results')
 
-    # run single model
+    # model parameters TODO most of it to config
     nepoch = 10000
-    img_h = 120  # 218
-    img_w = 160  # 178
-    num_colors = 1
-    v1_activation = False  # whether to load the matlab txt files or jpegs
-    crop_img = False
-    grayscale = True  # if true, 2D image is fed, 3D otherwise; set true when feeding 1 layer of CORF3D
-    logging = True if log_after > 0 else False
-    only_layer = None
-    complement = False
+    img_h = 120
+    img_w = 160
+    grayscale = True
+    num_colors = 1 if grayscale else 3
+    logging = True if log_after > 0 else False  # whether to create tensorboard summaries while training
 
     # load config, save if name given
     # FIXME configs should be saved in a single file
@@ -984,8 +773,8 @@ if __name__ == '__main__':
         save_config(network_params, config_name)
     pprint(network_params, stream=sys.stderr)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, v1_activation, crop_img, grayscale, network_params, logging=logging,
-                 only_layer=only_layer, img_complement=complement, log_after=log_after, save_after=save_after, training=train_or_test)
+    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params, logging=logging,
+                 log_after=log_after, save_after=save_after, training=train_or_test)
     print('MODEL IS BUILT', file=sys.stderr)
 
     # print number of params
@@ -1004,6 +793,5 @@ if __name__ == '__main__':
     if train_or_test:
         model.train(dataset, restore=True)
     else:
-        model.test(dataset, output_prefix=test_out_prefix, model_name=model_to_test_name, training_path='/media/viktor/0C22201D22200DF0/triton/triton_training/training/')
-        # model.test(dataset, training_path='/media/viktor/0C22201D22200DF0/triton/triton_training/training', output_prefix=test_out_prefix)
-    # model.view(dataset)
+        model.gen_vids(dataset, output_prefix=test_out_prefix, model_name=model_to_test_name, training_path='/media/viktor/0C22201D22200DF0/triton/triton_training/training/')
+        model.view(dataset)

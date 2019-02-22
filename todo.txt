@@ -1,0 +1,60 @@
+
+# TODO migration to github
+# write about how to run tensorboard
+# details on how to run scripts, step-by-step
+
+# TODO PRIMARY
+# TODO adaptive learning rate
+# TODO realistic noise to df and da:
+# TODO    2 soundstreams of [f00,f01,f02,f03] (+) [f10,f11,f12,f13] = [f00, f01, (f02+f10)/2, (f03+f11)/2, f12, f13]
+# TODO    according to amount of overlap defined by soundscape_len_by_stream_len
+# TODO check gammatone filter under ~/v2a/local/TwoEars-1.4/AuditoryFrontEnd/src/Filters
+
+# TODO TRAINING EXTRA
+# TODO add extra 1-hot label to dataset (only uint8 index to dataset, convert to 1-hot np), add extra cost to classify label
+# TODO label could be the class of hand gesture for example, so a model learns to differentiate between
+
+# TODO SECONDARY
+# TODO what if image drawing could end faster? - image detail dependent sequence length?
+# TODO discrete bottleneck
+# TODO deterministic warmup
+# TODO add embedding visualization: https://www.tensorflow.org/versions/r1.1/get_started/embedding_viz
+# TODO can go over the original implementation to find bugs if any in the color impl.: https://github.com/ericjang/draw/blob/master/draw.py
+# TODO update README.md, rename aev2a.py
+
+what has been already tried:
+    # everything (2 soundstream, 20 seqlen) but same dataset
+    # everything (2 soundstream, 20 seqlen) and simple dataset
+    # everything (3 soundstream, 10 seqlen) and simple dataset
+    # everything (2 soundstream, 30 seqlen) and simple dataset and halffs and 16 attn
+    # v1 write attention with custom w vector, long sound and 20 seq
+    # original write attention
+    # wavegan decoder needs update to have more filters in the first conv sweep - doubled, but conv layers became too large
+    # mfcss update - done
+    # decrease fs to 16k - done
+    # full on relu - not better, at least for 12 seq
+    # 1 seq with hearing almost converges
+    # 16k fs might not be worse than 22k - not conclusive, sound sounds worse
+    # try without hearing model/actual sound generation: just pass the low sample audio_gen params raw
+    # (8seq-hearing) 10 depth tcn
+    # skip connections: https://www.tensorflow.org/api_docs/python/tf/nn/rnn_cell/ResidualWrapper - under testing
+    # longer seq for v1 drawing helps (24 better than 20, 30 better than 24)
+    # cw doesn't hurt
+    # origi drawer converge better
+    # tconly is worse than all three hearing models
+    # decreased attention patch reader/writer size for nov1 hearing models doesn't matter
+    # v1 seq30 performs slightly better than nov1 seq10 (in general nov1 > v1 w/ same parameters)
+    # v1 seq30 > v1 seq24
+    # v1 has more difficulty with congruence loss than nov1
+    # residual or properreader (20 attention) does not seem to be better for hearing models
+    # decrease learning rate: 1e-5 works around the same as 1e-6
+    # nonrecurrent performs bad
+    # 2 ss at a time is not enough, 3 is needed at least (v1,seq30 with 3 performs better than nov1,seq20 with 2)
+    # residual vs nonresidual in nov1 hearing models doesn't matter
+    # tanh > lrelu
+    # origiwrite performs slightly better with long sounds, and low seqlen
+    # >3ss does not make sense unless w/ constant phase
+    # added epsilon to sigma, see if this helps in the nan problem --> it's not necessary
+    # noised azim works in itself, so it stores information (even after two layers of gaussian noising)
+    # overlayed soundstreams are harder to decode by the hearing decoder
+    # the higher the dimensionality of the latent variable (different from audio_gen input size), the less guaranteed the perceptual difference between sounds, but more resource to encode complicated visua info

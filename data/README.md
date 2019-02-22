@@ -11,3 +11,8 @@
 
 The resulting hdf5 file should contain separate randomized training and test sets,
 by a default 90-10% fold (specify in `merge_imgs.py` if needed).
+
+Datasets used in the study are also available:
+
+- [hand gesture dataset](https://ufile.io/xq28e),
+- [table / reaching movement dataset](https://ufile.io/9uv24).

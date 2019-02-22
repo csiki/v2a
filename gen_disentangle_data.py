@@ -48,13 +48,13 @@ if __name__ == '__main__':
     network_params = load_config(config_name)
     pprint(network_params)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, v1_activation, crop_img, grayscale, network_params, logging=False,
-                 only_layer=only_layer, img_complement=complement, log_after=1000, save_after=2000, training=False)
+    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
+                 logging=False, log_after=1000, save_after=2000, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 
     # load dataset
-    data, is_hdf5 = model.get_data(dataset)
+    data = model.get_data(dataset)
     dataptr = data.root.test_img if test_set else data.root.train_img
     batch_size = 64
 
@@ -97,13 +97,13 @@ if __name__ == '__main__':
     while True:
         # select image
         if rand_select:
-            batch = model.get_batch(dataptr, is_hdf5, batch_size=batch_size)
+            batch = model.get_batch(dataptr, batch_size=batch_size)
         else:
             if (batch_round+1) * batch_size > dataptr.shape[0]:
                 batch_round = 1
                 break  # out
             indices = np.arange(batch_round * batch_size, (batch_round + 1) * batch_size)
-            batch = model.get_batch(dataptr, is_hdf5, indices=indices)
+            batch = model.get_batch(dataptr, indices=indices)
         # batch = np.expand_dims(batch, 0)
 
         # run model

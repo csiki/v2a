@@ -6,15 +6,14 @@ import simpleaudio as saudio
 from run_proto import CFG_TO_MODEL, CFG_TO_SOUND_LEN
 
 
-# TODO test if still works
 # shows image and corresponding sound
 # select to test images from the training or test set
 # select whether to choose random images from the set, or sequence from the beginning
 # right arrow moves to the next image (random or next in sequence), left arrow moves to previous, esc exits
 # should draw iteration by iteration and play sound at the same time
-# TODO record key strokes with the input (and output) image included so you can perform accuracy tests; could also record reaction time
-# run as python3.6 test_model.py <cfg_name> [<test|train>] [<rand|seq>]
+# usage: python test_model.py <cfg_name> [<test|train>] [<rand|seq>]
 
+# TODO record key strokes with the input (and output) image included so you can perform accuracy tests; could also record reaction time
 
 if __name__ == '__main__':
     argv = sys.argv
@@ -47,13 +46,13 @@ if __name__ == '__main__':
     network_params['batch_size'] = 1
     pprint(network_params)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, v1_activation, crop_img, grayscale, network_params, logging=False,
-                 only_layer=only_layer, img_complement=complement, log_after=1000, save_after=2000, training=False)
+    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
+                 logging=False, log_after=1000, save_after=2000, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 
     # load dataset
-    data, is_hdf5 = model.get_data(dataset)
+    data = model.get_data(dataset)
     dataptr = data.root.test_img if test_set else data.root.train_img
     loadnsamples = 64
 
@@ -62,12 +61,12 @@ if __name__ == '__main__':
     while True:
         # select image
         if rand_select:
-            batch = model.get_batch(dataptr, is_hdf5, batch_size=loadnsamples)
+            batch = model.get_batch(dataptr, batch_size=loadnsamples)
         else:
             if (batch_round+1) * loadnsamples > dataptr.shape[0]:
                 batch_round = 1
             indices = np.arange(batch_round * loadnsamples, (batch_round+1) * loadnsamples)
-            batch = model.get_batch(dataptr, is_hdf5, indices=indices)
+            batch = model.get_batch(dataptr, indices=indices)
 
         # iterate through the batch
         img_i = 0
