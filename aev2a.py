@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 from utils import *
-from glob import glob
 import os, sys
 import time
 import tables
@@ -15,16 +14,11 @@ from pprint import pprint
 
 class Draw:
 
-    def __init__(self, nepoch, img_h, img_w, num_colors, grayscale, network_params,
-                 logging=True, log_after=100, save_after=1000, training=True):
+    def __init__(self, nepoch, network_params, model_name_postfix, logging=True, training=True):
         self.nepoch = nepoch
-        self.img_h = img_h
-        self.img_w = img_w
-        self.num_colors = num_colors
-        self.grayscale = grayscale
+        self.img_h, self.img_w, self.num_colors = network_params['input_dim']
+        self.grayscale = self.num_colors == 1  # else RGB
         self.logging = logging
-        self.log_after = log_after
-        self.save_after = save_after
         self.training = training
 
         self.attention_n = network_params['attention_n']
@@ -38,8 +32,8 @@ class Draw:
         self.hearing_decoder = network_params['hearing_decoder']
         self.v1_gaussian = network_params['v1_gaussian']
         self.n_v1_write = network_params['n_v1_write'] if self.v1_gaussian else 1
-        self.dtype = network_params['dtype']
-        self.npdtype = network_params['npdtype']
+        self.dtype = tf.as_dtype(network_params['dtype'])
+        self.npdtype = np.dtype(network_params['dtype'])
         self.fs = network_params['fs']
         self.kl_weight = network_params['kl_weight']
         self.congruence_weight = network_params['congr_weight']
@@ -49,19 +43,25 @@ class Draw:
         available_gpus = get_available_gpus()
         audio_params = network_params['audio_gen']
         hearing_params = network_params['hearing']
+        hearing_models_used = hearing_params['models_used']
         self.min_img_dim = min([self.img_h, self.img_w])
         self.v1_wr = tf.ones([self.batch_size, 1, 1, self.attention_n])  # makes the model draw only white pixels
-        hearing_gpus = [available_gpus[0], available_gpus[0]]  # default, if only 1 gpu is available
-        hearing_gpus[:] = [available_gpus[1]] * len(hearing_gpus) if len(available_gpus) > 1 else hearing_gpus
-        hearing_gpus[1] = available_gpus[2] if len(available_gpus) > 2 else hearing_gpus[1]
+
+        # assign separate gpus to the hearing models, they tend to consume memory
+        # leave the first gpu for everything else, spread the rest among the used hearing models
+        hearing_gpus = [available_gpus[0] for _ in range(sum(hearing_models_used.values()))]  # default case of 1 gpu available
+        if len(available_gpus) > 1:
+            for hearing_i in range(len(hearing_gpus)):
+                hearing_gpus[hearing_i] = available_gpus[(hearing_i % (len(available_gpus) - 1)) + 1]
 
         # model name is crazy long but easy to search in tensorboard
-        self.model_name_format = 'img={}x{}x{},attention={},hidden={},z={},seq_len={},n_rnn={}-{},v1={},nv1write={},cw={},fs={},hearing={},sslen={}x{}*{}*{},constphase={},mfccs={}-{}-{},wg={}-{}-{}_showoff'
+        hearing_decoder_naming = ','.join([str(int(h)) for h in hearing_models_used.values()]) if self.hearing_decoder else self.hearing_decoder
+        self.model_name_format = 'img={}x{}x{},attention={},hidden={},z={},seq_len={},n_rnn={}-{},v1={},nv1write={},cw={},fs={},hearing={},sslen={}x{}*{}*{},constphase={},mfccs={}-{}-{},wg={}-{}-{}' + model_name_postfix
         self.model_name = self.model_name_format\
             .format(self.img_h, self.img_w, self.num_colors, self.attention_n, self.n_hidden, self.n_z, self.sequence_length,
-                    self.n_rnn_cells[0], self.n_rnn_cells[1], self.v1_gaussian, self.n_v1_write, self.congruence_weight, self.fs, self.hearing_decoder,
-                    audio_params['nsoundstream'], audio_params['nmodulation'], audio_params['section_len_msec'],
-                    audio_params['soundscape_len_by_stream_len'], audio_params['const_phase'],
+                    self.n_rnn_cells[0], self.n_rnn_cells[1], self.v1_gaussian, self.n_v1_write, self.congruence_weight,
+                    self.fs, hearing_decoder_naming, audio_params['nsoundstream'], audio_params['nmodulation'],
+                    audio_params['section_len_msec'], audio_params['soundscape_len_by_stream_len'], audio_params['const_phase'],
                     hearing_params['mfcss_nceps'], hearing_params['mfcss_frame_len'], hearing_params['mfcss_frame_step'],
                     hearing_params['wg_nfilters'], hearing_params['wg_kernel_len'], hearing_params['wg_strides'])
 
@@ -116,12 +116,14 @@ class Draw:
         h_dec_prev = tf.zeros((self.batch_size, self.n_hidden))
         enc_state = self.rnn_enc.zero_state(self.batch_size, self.dtype)
 
-        # init hearing models  TODO add parameters for tcn net, wavegan, mfccs
+        # init hearing models
         self.soundscape_len = audio_gen.soundscape_len(audio_params, self.fs)
         if self.hearing_decoder:  # tcn and carfac are off
-            # self.carfac = tf_carfac.CARFAC(self.soundscape_len, self.fs, self.batch_size, self.dtype, self.npdtype)
-            channels = [hearing_params['tcn_nhidden']] * hearing_params['tcn_nlevels']  # 1+2*(kernel_size-1)*(2^nlevels-1)
-            # self.tcn_net = tcn.TemporalConvNet(channels, hearing_params['tcn_kernel_size'], hearing_params['tcn_dropout'])
+            if hearing_models_used['carfac']:
+                self.carfac = tf_carfac.CARFAC(self.soundscape_len, self.fs, self.batch_size, self.dtype, self.npdtype)
+            if hearing_models_used['tcn']:
+                channels = [hearing_params['tcn_nhidden']] * hearing_params['tcn_nlevels']  # 1+2*(kernel_size-1)*(2^nlevels-1)
+                self.tcn_net = tcn.TemporalConvNet(channels, hearing_params['tcn_kernel_size'], hearing_params['tcn_dropout'])
 
         # set the initial value of the canvas image, so it doesn't start from gray, but from the background color
         # take into account that this initial value is passed through a sigmoid first, hence originally sigmoid(0)=0.5
@@ -175,23 +177,37 @@ class Draw:
             if self.hearing_decoder:
                 # if >1 GPUs available, place the hearing models on them
                 with tf.variable_scope('hearing', reuse=self.share_parameters):
-                    with tf.device(hearing_gpus[0]):
-                        mfccs_hearing_repr = hearing.mfccs_hearing(soundscape, hearing_params, self.fs, self.share_parameters)
-                    with tf.device(hearing_gpus[1]):
-                        wg_hearing_repr = hearing.wavegan_hearing(soundscape, self.batch_size, hearing_params, self.fs, self.share_parameters)
-
-                    # carfac and tcn are off, uncomment here and above at hearing init to activate them
-                    # hearing_repr = hearing.carfac_hearing(self.carfac, soundscape, hearing_params['hearing_repr_len'])
-                    # tcn_hearing_repr = hearing.tcn_hearing(self.tcn_net, soundscape, self.training, hearing_params, self.share_parameters)
+                    gpu_i = 0
+                    hearing_reprs = []
+                    if hearing_models_used['mfccs']:
+                        with tf.device(hearing_gpus[gpu_i]):
+                            mfccs_hearing_repr = hearing.mfccs_hearing(soundscape, hearing_params, self.fs, self.share_parameters)
+                        hearing_reprs.append(mfccs_hearing_repr)
+                        gpu_i += 1
+                    if hearing_models_used['wavegan']:
+                        with tf.device(hearing_gpus[gpu_i]):
+                            wg_hearing_repr = hearing.wavegan_hearing(soundscape, self.batch_size, hearing_params, self.fs, self.share_parameters)
+                        hearing_reprs.append(wg_hearing_repr)
+                        gpu_i += 1
+                    if hearing_models_used['tcn']:
+                        with tf.device(hearing_gpus[gpu_i]):
+                            tcn_hearing_repr = hearing.tcn_hearing(self.tcn_net, soundscape, self.training, hearing_params, self.share_parameters)
+                        hearing_reprs.append(tcn_hearing_repr)
+                        gpu_i += 1
+                    if hearing_models_used['carfac']:  # brave boi
+                        with tf.device(hearing_gpus[gpu_i]):
+                            carfac_hearing_repr = hearing.carfac_hearing(self.carfac, soundscape, hearing_params['hearing_repr_len'])
+                        hearing_reprs.append(carfac_hearing_repr)
+                        gpu_i += 1
 
                     # append dazim to hearing_repr
                     # raw_dazim is passed onto the network skipping the hearing model as the model is not binaural
                     raw_dazim = soundscape_tensors['raw_dazim']  # nbatch x nstream x nmodulation
                     raw_dazim = hearing.binaural_noise_hearing(raw_dazim, self.azim_e)
                     raw_dazim = tf.reshape(raw_dazim, [-1, audio_params['nsoundstream'] * audio_params['nmodulation']])
+                    hearing_reprs.append(raw_dazim)
 
-                    # hearing_repr = tf.concat([mfccs_hearing_repr, tcn_hearing_repr, raw_dazim], axis=1)
-                    hearing_repr = tf.concat([mfccs_hearing_repr, wg_hearing_repr, raw_dazim], axis=1)
+                    hearing_repr = tf.concat(hearing_reprs, axis=1)
             else:  # pass audio_gen parameters raw to the decoder
                 # gather raw network_params['n_z']audio_gen variables
                 raw_phase = soundscape_tensors['raw_phase']
@@ -577,7 +593,7 @@ class Draw:
         return np.array(
             [get_image(data[i], self.grayscale) for i in indices]).astype(self.npdtype)
 
-    def train(self, dataset, restore=True, model_name=None):
+    def train(self, dataset, restore=True, model_name=None, log_every=100, save_every=1000):
         self.model_name = model_name or self.model_name
 
         data = self.get_data(dataset)
@@ -602,7 +618,7 @@ class Draw:
                 cs, attn_params, gen_loss, lat_loss, _, glob_step = self.sess.run([self.cs, self.wr_attn_params, self.generation_loss,
                                                                                    self.latent_loss, self.train_op, self.global_step],
                                                                                   feed_dict={self.images: batch_images})
-                if (e * nbatch + i + 1) % self.log_after == 0 and self.logging:
+                if (e * nbatch + i + 1) % log_every == 0 and self.logging:
                     time_spent = time.time() - start_time
                     start_time = time.time()
                     s = self.sess.run(self.merged_summary, feed_dict={self.images: batch_images})
@@ -625,7 +641,7 @@ class Draw:
                         print('NaN value found, exiting', file=sys.stderr)
                         return
 
-                if (e * nbatch + i + 1) % self.save_after == 0:
+                if (e * nbatch + i + 1) % save_every == 0:
                     saver.save(self.sess, os.path.join(os.getcwd(), 'training', self.model_name, 'train'), global_step=glob_step)
                     print('MODEL "{}" SAVED at iteration {}'.format(self.model_name, e * self.nepoch + i), file=sys.stderr)
 
@@ -638,9 +654,9 @@ class Draw:
                         ims(os.path.join(os.getcwd(), 'results', self.model_name, str(e)+'-'+str(i)+'-step-'+str(cs_iter)+'.png'),
                             merge_color(results_square, [8, self.batch_size // 8]))
 
-    def gen_vids(self, dataset, training_path=None, model_name=None, output_prefix=''):
+    def gen_vids(self, dataset, training_path=None, output_prefix=''):
+
         # pass random batch, save output images and sounds, concat images and add sound w/ ffmpeg
-        self.model_name = model_name or self.model_name
         training_path = training_path or os.path.join(os.getcwd(), 'training')
 
         data = self.get_data(dataset)
@@ -662,23 +678,23 @@ class Draw:
 
             # iterate through all images at this cs_iter, and save them temporaly
             for idx, img in enumerate(canvas_images):
-                ims('tmp/' + output_prefix + 'img_{0}_iter_{1:0=2d}.png'.format(idx, cs_iter), img)
+                ims('vids/' + output_prefix + 'img_{0}_iter_{1:0=2d}.png'.format(idx, cs_iter), img)
 
         # save sounds
         for i in range(self.batch_size):
-            wavfile.write('tmp/' + output_prefix + 'sound_{}.wav'.format(i), self.fs, soundscapes[i])
+            wavfile.write('vids/' + output_prefix + 'sound_{}.wav'.format(i), self.fs, soundscapes[i])
 
         # concat imgs + add sound, use ffmpeg from command line
         nimg_per_sec = int(1. / (self.soundscape_len / self.fs))
         for i in range(self.batch_size):
-            os.system('ffmpeg -r {} -i tmp/{}img_{}_iter_%02d.png -i tmp/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y tmp/{}movie_{}.mp4'
+            os.system('ffmpeg -r {} -i vids/{}img_{}_iter_%02d.png -i vids/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y vids/{}movie_{}.mp4'
                       .format(nimg_per_sec, output_prefix, i, output_prefix, i, output_prefix, i))  # mpeg4 if libx264 does not work
 
         # concat videos together to a single video; first fill mylist.txt with the list of videos
         # ffmpeg -f concat -safe 0 -i mylist.txt -c copy concat/table3-nov1-8seq.mp4
 
         # remove temporal images and sounds
-        os.system('rm tmp/*.png tmp/*.wav')
+        os.system('rm vids/*.png vids/*.wav')
 
     def prepare_run_single(self, training_path):
         saver = tf.train.Saver(max_to_keep=2)
@@ -735,15 +751,16 @@ from config import *
 
 if __name__ == '__main__':
 
-    # args: dataset_path, log_after, save_after
-    dataset = sys.argv[1]  # path to dataset
-    log_after = int(sys.argv[2]) if len(sys.argv) > 2 else 100
-    save_after = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
-    config_name = sys.argv[4] if len(sys.argv) > 4 else None
-    lr = float(sys.argv[5]) if len(sys.argv) > 5 else None
-    train_or_test = sys.argv[6] == 'train' if len(sys.argv) > 6 else True
-    test_out_prefix = sys.argv[7] if len(sys.argv) > 7 else ''
-    model_to_test_name = sys.argv[8] if len(sys.argv) > 8 else None
+    # args: mode_cfg_id, dataset_path, train|test, nepoch, log_every, save_every, model_name_postfix
+    config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
+    dataset = sys.argv[2] if len(sys.argv) > 2 else 'data/simple_hand.hdf5'  # path to dataset, default can be downloaded
+    train_or_test = sys.argv[3] == 'train' if len(sys.argv) > 3 else True  # training by default
+    nepoch = int(sys.argv[4]) if len(sys.argv) > 4 else 10000
+    log_every = int(sys.argv[5]) if len(sys.argv) > 5 else 100  # log in every n iterations
+    save_every = int(sys.argv[6]) if len(sys.argv) > 6 else 1000  # save model in every n iterations
+    model_name_postfix = sys.argv[7] if len(sys.argv) > 7 else ''  # if having more models with the same config
+
+    logging = True if log_every > 0 else False  # whether to create tensorboard summaries while training
 
     print('TENSORFLOW VERSION:', tf.__version__, file=sys.stderr)
     print('DATA SET:', dataset, file=sys.stderr)
@@ -755,27 +772,18 @@ if __name__ == '__main__':
         os.mkdir('summary')
     if not os.path.exists('results'):
         os.mkdir('results')
-
-    # model parameters TODO most of it to config
-    nepoch = 10000
-    img_h = 120
-    img_w = 160
-    grayscale = True
-    num_colors = 1 if grayscale else 3
-    logging = True if log_after > 0 else False  # whether to create tensorboard summaries while training
+    if not os.path.exists('vids'):
+        os.mkdir('vids')
 
     # load config, save if name given
-    # FIXME configs should be saved in a single file
-    network_params = load_config(config_name)
-    if lr:
-        network_params['learning_rate'] = lr
-    if config_name:
-        save_config(network_params, config_name)
-    pprint(network_params, stream=sys.stderr)
+    params = load_config(config_id)
+    pprint(params, stream=sys.stderr)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params, logging=logging,
-                 log_after=log_after, save_after=save_after, training=train_or_test)
+    model = Draw(nepoch, params, model_name_postfix=model_name_postfix, logging=logging, training=train_or_test)
     print('MODEL IS BUILT', file=sys.stderr)
+
+    # save config with the assigned model name updated
+    save_config(config_id, params, model.model_name)
 
     # print number of params
     total_parameters = 0
@@ -791,7 +799,7 @@ if __name__ == '__main__':
     print('total_parameters', total_parameters, file=sys.stderr)
 
     if train_or_test:
-        model.train(dataset, restore=True)
+        model.train(dataset, restore=True, log_every=log_every, save_every=save_every)
     else:
-        model.gen_vids(dataset, output_prefix=test_out_prefix, model_name=model_to_test_name, training_path='/media/viktor/0C22201D22200DF0/triton/triton_training/training/')
+        model.gen_vids(dataset, output_prefix=config_id, training_path='training/')
         model.view(dataset)

@@ -47,7 +47,7 @@ if __name__ == '__main__':
     pprint(network_params)
 
     model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
-                 logging=False, log_after=1000, save_after=2000, training=False)
+                 logging=False, log_every=1000, save_every=2000, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 

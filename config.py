@@ -1,12 +1,12 @@
 import numpy as np
 import tensorflow as tf
-import audio_gen
-import hearing
-import pickle
-import os
+import json
 
-# TODO all configs into one giant config file, saved as json
-# TODO structure: cfg_id: {model_cfg, model_path, dataset_path}
+
+# TODO write simple description here on how configs work
+# TODO FIXME fix all the places where configs/Draw model are used (gen_disentangle, test_model, ...)
+# TODO finalize confgis.json then: git update-index --assume-unchanged path/to/file.txt
+
 
 # BEST CONFIGS
   # ! means not enough contestants, * means confident
@@ -42,6 +42,10 @@ AUDIO_GEN_PARAMS = {
 }
 
 HEARING_PARAMS = {
+    'models_used': {'mfccs': True,
+                    'wavegan': True,
+                    'tcn': False,
+                    'carfac': False},  # carfac is highly experimental = doesn't scale/work really
     'mfcss_frame_len': 0.010,  # s
     'mfcss_frame_step': 0.002,  # s
     'mfcss_nceps': 100,  # number of coeffs, 13 for ASR, max 100
@@ -49,15 +53,15 @@ HEARING_PARAMS = {
     'wg_kernel_len': 0.010,  # s
     'wg_strides': 0.002,  # s
     'hearing_repr_len': 512,
-    'tcn_nlevels': 11,  # FIXME also dependent on fs and audio_gen params
+    'tcn_nlevels': 11,
     'tcn_nhidden': 32,
     'tcn_kernel_size': 2,
     'tcn_dropout': 0.1
 }
 
 DEFAULT_NETWORK_PARAMS = {
-    'dtype': tf.float32,
-    'npdtype': np.float32,
+    'dtype': 'float32',
+    'input_dim': (120, 160, 1),  # height, width, depth (1=grayscale, 3=RGB)
     'attention_n': 20,
     'n_hidden': 32,
     'n_z': 32,  # if z_indirection is false, this value will be overwritten to be the number of audio_gen params
@@ -79,35 +83,38 @@ DEFAULT_NETWORK_PARAMS = {
 }
 
 
-def save_config(params, model_name):
-    path = os.path.join(os.getcwd(), 'configs', model_name)
-    with open(path, 'wb') as f:
-        pickle.dump(params, f)
-
-
-def load_config(model_name):
-    if model_name is None:
-        return DEFAULT_NETWORK_PARAMS
-
-    path = os.path.join(os.getcwd(), 'configs', model_name)
-    if not os.path.isfile(path):
-        return DEFAULT_NETWORK_PARAMS
+def load_config(cfg_id):
 
     # load from file
-    with open(path, 'rb') as f:
-        params = pickle.load(f)
+    # structure: {cfg_id: {cfg: <model_config>, models: [<list_of_long_model_names>]}}
+    with open('configs.json', 'rt') as f:
+        configs = json.load(f)
+
+    if cfg_id not in configs:
+        return DEFAULT_NETWORK_PARAMS
 
     # add missing parameters if any
+    params = configs[cfg_id]['cfg']
     for missing in (DEFAULT_NETWORK_PARAMS.keys() - params.keys()):
         params[missing] = DEFAULT_NETWORK_PARAMS[missing]
 
     for missing in (DEFAULT_NETWORK_PARAMS['audio_gen'].keys() - params['audio_gen'].keys()):
         params['audio_gen'][missing] = DEFAULT_NETWORK_PARAMS['audio_gen'][missing]
 
-    # params['audio_gen']['const_phase'] = False  # FIXME rm
-
     for missing in (DEFAULT_NETWORK_PARAMS['hearing'].keys() - params['hearing'].keys()):
         params['hearing'][missing] = DEFAULT_NETWORK_PARAMS['hearing'][missing]
 
+    return params  # model names are not returned
 
-    return params
+
+def save_config(cfg_id, params, model_name):
+    with open('configs.json', 'rt') as f:
+        configs = json.load(f)
+
+    if cfg_id not in configs:
+        configs[cfg_id] = {'cfg': params, 'models': [model_name]}  # first model with this cfg
+    elif model_name not in configs[cfg_id]['models']:  # add new model with existing cfg
+        configs[cfg_id]['models'].append(model_name)
+
+    with open('configs.json', 'wt') as f:
+        json.dump(configs, f, indent=4)

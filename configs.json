@@ -1,0 +1,64 @@
+{
+    "default": {
+        "cfg": {
+            "dtype": "float32",
+            "input_dim": [
+                120,
+                160,
+                1
+            ],
+            "attention_n": 20,
+            "n_hidden": 32,
+            "n_z": 32,
+            "z_indirection": false,
+            "sequence_length": 4,
+            "batch_size": 64,
+            "n_rnn_cells": [
+                2,
+                2
+            ],
+            "learning_rate": 5e-05,
+            "nonrecurrent_dec": false,
+            "residual_encoder": true,
+            "hearing_decoder": false,
+            "v1_gaussian": true,
+            "n_v1_write": 3,
+            "kl_weight": 0.1,
+            "congr_weight": 0.1,
+            "fs": 16000,
+            "audio_gen": {
+                "binaural": true,
+                "varying_delta": true,
+                "nsoundstream": 3,
+                "nmodulation": 4,
+                "section_len_msec": 8,
+                "attack_len_msec": 1,
+                "decay_len_msec": 1,
+                "soundscape_len_by_stream_len": 1.5,
+                "const_phase": true
+            },
+            "hearing": {
+                "models_used": {
+                    "mfccs": true,
+                    "wavegan": true,
+                    "tcn": false,
+                    "carfac": false
+                },
+                "mfcss_frame_len": 0.01,
+                "mfcss_frame_step": 0.002,
+                "mfcss_nceps": 100,
+                "wg_nfilters": 64,
+                "wg_kernel_len": 0.01,
+                "wg_strides": 0.002,
+                "hearing_repr_len": 512,
+                "tcn_nlevels": 11,
+                "tcn_nhidden": 32,
+                "tcn_kernel_size": 2,
+                "tcn_dropout": 0.1
+            }
+        },
+        "models": [
+            "img=120x160x1,attention=20,hidden=32,z=32,seq_len=4,n_rnn=2-2,v1=True,nv1write=3,cw=0.1,fs=16000,hearing=False,sslen=3x4*8*1.5,constphase=True,mfccs=100-0.01-0.002,wg=64-0.01-0.002"
+        ]
+    }
+}

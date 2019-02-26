@@ -12,7 +12,6 @@ configs/
 config.json
 configs/
 data/*.hdf5
-!data/simple_hand.hdf5
 
 copy_results_to_local.sh
 triton_batch.sh

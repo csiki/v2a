@@ -22,7 +22,7 @@ if __name__ == '__main__':
     test_set = argv[2] == 'test' if len(argv) > 2 else True
     rand_select = argv[3] == 'rand' if len(argv) > 3 else False
 
-    dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'
+    dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'  # FIXME
     if 'ap-' in config_name:
         dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/apartment.hdf5'
     elif 'table' in config_name:
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     pprint(network_params)
 
     model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
-                 logging=False, log_after=1000, save_after=2000, training=False)
+                 logging=False, log_every=1000, save_every=2000, training=False)  # FIXME
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 
