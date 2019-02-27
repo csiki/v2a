@@ -226,10 +226,10 @@ def separate_params(inp_params, nsoundstream, nmodulation, varying_delta, loggin
 
 
 # needed in color draw model init
-def soundscape_len(stream_params, fs):
-    section_len = int(stream_params['section_len_msec'] / 1000. * fs)
-    soundstream_len = int(stream_params['nmodulation'] * section_len)
-    return int(soundstream_len * stream_params['soundscape_len_by_stream_len'])
+def soundscape_len(audio_params, fs):
+    section_len = int(audio_params['section_len_msec'] / 1000. * fs)
+    soundstream_len = int(audio_params['nmodulation'] * section_len)
+    return int(soundstream_len * audio_params['soundscape_len_by_stream_len'])
 
 
 def gen_single_input(f0_in, a0_in, azim0_in, phase_in, df_in, da_in, dazim_in,

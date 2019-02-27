@@ -14,8 +14,7 @@ from pprint import pprint
 
 class Draw:
 
-    def __init__(self, nepoch, network_params, model_name_postfix, logging=True, training=True):
-        self.nepoch = nepoch
+    def __init__(self, network_params, model_name_postfix, logging=True, training=True):
         self.img_h, self.img_w, self.num_colors = network_params['input_dim']
         self.grayscale = self.num_colors == 1  # else RGB
         self.logging = logging
@@ -593,7 +592,7 @@ class Draw:
         return np.array(
             [get_image(data[i], self.grayscale) for i in indices]).astype(self.npdtype)
 
-    def train(self, dataset, restore=True, model_name=None, log_every=100, save_every=1000):
+    def train(self, dataset, restore=True, model_name=None, nepoch=10000, log_every=100, save_every=1000):
         self.model_name = model_name or self.model_name
 
         data = self.get_data(dataset)
@@ -610,7 +609,7 @@ class Draw:
             print('NEW MODEL "{}" IS BEING TRAINED'.format(self.model_name), file=sys.stderr)
 
         start_time = time.time()
-        for e in range(self.nepoch):
+        for e in range(nepoch):
             nbatch = (data_len // self.batch_size) - 2
             for i in range(nbatch):
 
@@ -643,7 +642,7 @@ class Draw:
 
                 if (e * nbatch + i + 1) % save_every == 0:
                     saver.save(self.sess, os.path.join(os.getcwd(), 'training', self.model_name, 'train'), global_step=glob_step)
-                    print('MODEL "{}" SAVED at iteration {}'.format(self.model_name, e * self.nepoch + i), file=sys.stderr)
+                    print('MODEL "{}" SAVED at iteration {}'.format(self.model_name, e * nepoch + i), file=sys.stderr)
 
                     cs = 1.0/(1.0+np.exp(-np.array(cs)))  # x_recons=sigmoid(canvas)
 
@@ -779,7 +778,7 @@ if __name__ == '__main__':
     params = load_config(config_id)
     pprint(params, stream=sys.stderr)
 
-    model = Draw(nepoch, params, model_name_postfix=model_name_postfix, logging=logging, training=train_or_test)
+    model = Draw(params, model_name_postfix=model_name_postfix, logging=logging, training=train_or_test)
     print('MODEL IS BUILT', file=sys.stderr)
 
     # save config with the assigned model name updated
@@ -799,7 +798,7 @@ if __name__ == '__main__':
     print('total_parameters', total_parameters, file=sys.stderr)
 
     if train_or_test:
-        model.train(dataset, restore=True, log_every=log_every, save_every=save_every)
+        model.train(dataset, restore=True, nepoch=nepoch, log_every=log_every, save_every=save_every)
     else:
         model.gen_vids(dataset, output_prefix=config_id, training_path='training/')
         model.view(dataset)

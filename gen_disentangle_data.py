@@ -17,39 +17,25 @@ def img_to_uint(img):
 
 
 if __name__ == '__main__':
-    argv = sys.argv
-    config_name = argv[1] if len(argv) > 1 else 'table3-nov1-8seq-zind'  # table3-nov1-8seq, v1-extra-26seq-4mod-cheat
-    test_set = argv[2] == 'test' if len(argv) > 2 else True
-    rand_select = argv[3] == 'rand' if len(argv) > 3 else False
 
-    dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'  # FIXME
-    if 'ap-' in config_name:
-        dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/apartment.hdf5'
-    elif 'table' in config_name:
-        dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/table3.hdf5'
-    model_name = CFG_TO_MODEL[config_name]
-    model_root = '/media/viktor/0C22201D22200DF0/triton/triton_training/training/'
-    sound_len = CFG_TO_SOUND_LEN[config_name]
+    config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
+    dataset = sys.argv[2] if len(sys.argv) > 2 else 'data/simple_hand.hdf5'  # path to dataset, default can be downloaded
+    test_set = sys.argv[3] == 'test' if len(sys.argv) > 3 else True  # training by default
+    rand_select = sys.argv[4] == 'rand' if len(sys.argv) > 4 else True
+    model_name_postfix = sys.argv[5] if len(sys.argv) > 5 else ''  # if having more models with the same config
+
+    network_params = load_config(config_id)
+    network_params['batch_size'] = 1
+    model_name = find_model(config_id, model_name_postfix)
+    sound_len = audio_gen.soundscape_len(network_params['audio_gen'], network_params['fs'])
+    model_root = 'training/'
 
     RIGHT_BTN = ord('d')
     LEFT_BTN = ord('a')
 
-    # build V2A model
-    nepoch = 10000
-    img_h = 120
-    img_w = 160
-    num_colors = 1
-    v1_activation = False  # whether to load the matlab txt files or jpegs
-    crop_img = False
-    grayscale = True  # if true, 2D image is fed, 3D otherwise; set true when feeding 1 layer of CORF3D
-    only_layer = None
-    complement = False
-
-    network_params = load_config(config_name)
     pprint(network_params)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
-                 logging=False, log_every=1000, save_every=2000, training=False)  # FIXME
+    model = Draw(network_params, model_name_postfix, logging=False, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 
@@ -60,7 +46,6 @@ if __name__ == '__main__':
 
     # test model image by image
     batch_round = 0
-    # data_to_save = []
     nseq = network_params['sequence_length']
     nsoundstream = network_params['audio_gen']['nsoundstream']
     n_v1_write = model.n_v1_write
@@ -74,7 +59,7 @@ if __name__ == '__main__':
     img_dtype = tables.UInt8Atom()
 
     set_text = '_test' if test_set else '_train'
-    hdf5_file = tables.open_file('/media/viktor/0C22201D22200DF0/hand_gestures/' + 'gendata_' + config_name + set_text + '.hdf5', mode='w')
+    hdf5_file = tables.open_file('data/gendata_' + config_id + set_text + '.hdf5', mode='w')
     cs_storage = hdf5_file.create_earray(hdf5_file.root, 'cs', img_dtype, shape=[0, nseq, model.img_h, model.img_w])
     if test_set:
         ss_storage = hdf5_file.create_earray(hdf5_file.root, 'soundscapes', ss_dtype, shape=[0, soundscape_len, 2])
@@ -92,8 +77,7 @@ if __name__ == '__main__':
     raw_dazim_storage = hdf5_file.create_earray(hdf5_file.root, 'raw_dazim', float_dtype, shape=[0, nseq, nsoundstream, nmodulation])
     if v1_gaussian:
         angle_storage = hdf5_file.create_earray(hdf5_file.root, 'angle', float_dtype, shape=[0, nseq, n_v1_write])
-    # with open('gendata_' + config_name + '.pickle', 'wb') as f:
-    # pickle_f = open('gendata_' + config_name + '.pickle', 'wb')
+
     while True:
         # select image
         if rand_select:
@@ -104,17 +88,15 @@ if __name__ == '__main__':
                 break  # out
             indices = np.arange(batch_round * batch_size, (batch_round + 1) * batch_size)
             batch = model.get_batch(dataptr, indices=indices)
-        # batch = np.expand_dims(batch, 0)
 
         # run model
         cs, inp_imgs, gen_imgs, soundscapes, ss_tensors, wr_tensors = model.sess.run([model.cs, model.images, model.generated_images,
-                                                                                        model.whole_soundscape, model.soundscape_tensors,
-                                                                                        model.wr_attn_params],
-                                                                                       feed_dict={model.images: batch})
+                                                                                      model.whole_soundscape, model.soundscape_tensors,
+                                                                                      model.wr_attn_params],
+                                                                                     feed_dict={model.images: batch})
         cs = 1.0 / (1.0 + np.exp(-np.array(cs)))  # nseq x batch x height x width
         cs = np.reshape(cs, [model.sequence_length, batch_size, model.img_h, model.img_w])
         cs = np.transpose(cs, [1, 0, 2, 3])
-        # soundscape, gen_img, cs = soundscapes[0], np.reshape(gen_imgs[0], [model.img_h, model.img_w]), cs
 
         # ss_tensors: nseq x [dict] x batch x ...
         # we need df, da, dazim in the form of [dict] x batch x nseq x ...
@@ -155,47 +137,27 @@ if __name__ == '__main__':
                     gx[:, i_seq, d] = np.reshape(wr_tensors[i_seq][0], [batch_size])
                     gy[:, i_seq, d] = np.reshape(wr_tensors[i_seq][1], [batch_size])
                     delta[:, i_seq, d] = np.reshape(wr_tensors[i_seq][2], [batch_size])
-                    # angle[:, i_seq, d] = np.reshape(wr_tensors[i_seq][3], [batch_size])
 
-        # ss_tensors_realigned = {'df': df, 'da': da, 'dazim': dazim}
-        # wr_tensors_realigned = {'gx': gx, 'gy': gy, 'delta': delta}
-
-        # print(ss_tensors_realigned, wr_tensors_realigned)
         print('.', end='', flush=True)
 
-        # for i in range(batch_size):
-        if True:
-            # record = {}
-            # record['cs'] = cs[i]
-            # record['gen_img'] = np.reshape(gen_imgs[i], [model.img_h, model.img_w])
-            # record['soundscape'] = np.int16(soundscapes[i] / np.max(np.abs(soundscapes[i])) * 32767)
-            # record['ss_tensors'] = {k: v[i] for k, v in ss_tensors_realigned.items()}
-            # record['wr_tensors'] = {k: v[i] for k, v in wr_tensors_realigned.items()}
+        cs_storage.append(img_to_uint(cs))
+        img_storage.append(img_to_uint(np.reshape(gen_imgs, [batch_size, model.img_h, model.img_w])))
+        inp_img_storage.append(img_to_uint(np.reshape(inp_imgs, [batch_size, model.img_h, model.img_w])))
+        if test_set:
+            ss_storage.append(np.int16(soundscapes / np.max(np.abs(soundscapes)) * 32767))
+        df_storage.append(df)
+        da_storage.append(da)
+        dazim_storage.append(dazim)
 
-            cs_storage.append(img_to_uint(cs))
-            img_storage.append(img_to_uint(np.reshape(gen_imgs, [batch_size, model.img_h, model.img_w])))
-            inp_img_storage.append(img_to_uint(np.reshape(inp_imgs, [batch_size, model.img_h, model.img_w])))
-            if test_set:
-                ss_storage.append(np.int16(soundscapes / np.max(np.abs(soundscapes)) * 32767))
-            df_storage.append(df)
-            da_storage.append(da)
-            dazim_storage.append(dazim)
+        raw_df_storage.append(raw_df)
+        raw_da_storage.append(raw_da)
+        raw_dazim_storage.append(raw_dazim)
 
-            raw_df_storage.append(raw_df)
-            raw_da_storage.append(raw_da)
-            raw_dazim_storage.append(raw_dazim)
-
-            gx_storage.append(gx)
-            gy_storage.append(gy)
-            delta_storage.append(delta)
-            if v1_gaussian:
-                angle_storage.append(angle)
-
-            # pickle.dump(record, pickle_f)
-            # data_to_save.append(record)
+        gx_storage.append(gx)
+        gy_storage.append(gy)
+        delta_storage.append(delta)
+        if v1_gaussian:
+            angle_storage.append(angle)
 
         batch_round += 1
-
-    # with open('gendata_' + config_name + '.pickle', 'wb') as f:
-    #     pickle.dump(data_to_save, f)
     hdf5_file.close()

@@ -1,10 +1,15 @@
 from aev2a import *
+from config import *
+import audio_gen
 import sys
 import cv2
 import numpy as np
 import simpleaudio as saudio
 from run_proto import CFG_TO_MODEL, CFG_TO_SOUND_LEN
 
+
+# TODO record key strokes for identification of soundscapes, stored with the corresponding image
+# TODO so one can perform accuracy tests on soundscape identification; could also record reaction time
 
 # shows image and corresponding sound
 # select to test images from the training or test set
@@ -13,41 +18,27 @@ from run_proto import CFG_TO_MODEL, CFG_TO_SOUND_LEN
 # should draw iteration by iteration and play sound at the same time
 # usage: python test_model.py <cfg_name> [<test|train>] [<rand|seq>]
 
-# TODO record key strokes with the input (and output) image included so you can perform accuracy tests; could also record reaction time
-
 if __name__ == '__main__':
-    argv = sys.argv
-    config_name = argv[1]
-    test_set = argv[2] == 'test' if len(argv) > 2 else True
-    rand_select = argv[3] == 'rand' if len(argv) > 3 else True
 
-    dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/simple_hand.hdf5'
-    if 'ap-' in config_name:
-        dataset = '/media/viktor/0C22201D22200DF0/hand_gestures/apartment.hdf5'
-    model_name = CFG_TO_MODEL[config_name]
-    model_root = '/media/viktor/0C22201D22200DF0/triton/triton_training/training/'
-    sound_len = CFG_TO_SOUND_LEN[config_name]
+    config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
+    dataset = sys.argv[2] if len(sys.argv) > 2 else 'data/simple_hand.hdf5'  # path to dataset, default can be downloaded
+    test_set = sys.argv[3] == 'test' if len(sys.argv) > 3 else True  # training by default
+    rand_select = sys.argv[4] == 'rand' if len(sys.argv) > 4 else True
+    model_name_postfix = sys.argv[5] if len(sys.argv) > 5 else ''  # if having more models with the same config
+
+    network_params = load_config(config_id)
+    network_params['batch_size'] = 1
+    model_name = find_model(config_id, model_name_postfix)
+    sound_len = audio_gen.soundscape_len(network_params['audio_gen'], network_params['fs'])
+    model_root = 'training/'
 
     RIGHT_BTN = ord('d')
     LEFT_BTN = ord('a')
 
-    # build V2A model
-    nepoch = 10000
-    img_h = 120
-    img_w = 160
-    num_colors = 1
-    v1_activation = False  # whether to load the matlab txt files or jpegs
-    crop_img = False
-    grayscale = True  # if true, 2D image is fed, 3D otherwise; set true when feeding 1 layer of CORF3D
-    only_layer = None
-    complement = False
-
-    network_params = load_config(config_name)
-    network_params['batch_size'] = 1
     pprint(network_params)
 
-    model = Draw(nepoch, img_h, img_w, num_colors, grayscale, network_params,
-                 logging=False, log_every=1000, save_every=2000, training=False)
+    # build V2A model
+    model = Draw(network_params, model_name_postfix, logging=False, training=False)
     model.prepare_run_single(model_root + model_name)
     print('MODEL IS BUILT')
 

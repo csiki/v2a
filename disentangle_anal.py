@@ -99,19 +99,19 @@ ANAL = {'1': False, '2': False, '3': False, '4': False, '5': False, '4/labeling'
         '5/draw_hand': False, '5/hist': False, '5/lame_plot': False, '6': True, '6/labeling': False,
         '6/create_sprite': False, '6/embed': False, '7': False, '8': True}
 
-# load data
-test_set = sys.argv[1] == 'test' if len(sys.argv) > 1 else True
-set_text = '_test' if test_set else '_train'
-table_cfg = 'table3-nov1-8seq'  # table3-nov1-8seq, table3-nov1-8seq-zind
-hand_cfg = 'v1-extra-26seq-4mod-cheat'
+config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
+test_set = sys.argv[2] == 'test' if len(sys.argv) > 2 else True
+table_cfg = sys.argv[3] if len(sys.argv) > 3 else 'default'
+hand_cfg = sys.argv[4] if len(sys.argv) > 4 else 'default'
 
-table_data_path = '/media/viktor/0C22201D22200DF0/hand_gestures/gendata_' + table_cfg + set_text + '.hdf5'
-hand_data_path = '/media/viktor/0C22201D22200DF0/hand_gestures/gendata_' + hand_cfg + set_text + '.hdf5'
+set_text = '_test' if test_set else '_train'
+table_data_path = 'data/gendata_' + table_cfg + set_text + '.hdf5'
+hand_data_path = 'data/gendata_' + hand_cfg + set_text + '.hdf5'
 table_data_file = tables.open_file(table_data_path, mode='r')
 hand_data_file = tables.open_file(hand_data_path, mode='r')
+
 print(table_data_file)
 print(hand_data_file)
-
 
 if ANAL['1']:
     # 1)
