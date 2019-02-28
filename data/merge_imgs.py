@@ -1,6 +1,4 @@
-from glob import glob
 import tables, imageio
-import numpy as np
 from random import shuffle
 import sys
 

@@ -1,8 +1,6 @@
-import os, sys
+import sys
 import numpy as np
-from glob import glob
 from scipy.misc import imread, imsave
-import matplotlib.pyplot as plt
 
 
 paths = sys.argv[1:]  # wildcards like path/to/images*.png

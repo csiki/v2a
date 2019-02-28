@@ -1,4 +1,4 @@
-% run script in parallel:
+% first change folderpath and outpath below, then run script in parallel in Matlab:
 % myCluster = parcluster('local');
 % myCluster.NumWorkers = 7;  % number of threads
 % saveProfile(myCluster);

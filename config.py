@@ -1,32 +1,8 @@
-import numpy as np
-import tensorflow as tf
 import json
 
 
 # TODO write simple description here on how configs work
-# TODO FIXME fix all the places where configs/Draw model are used (gen_disentangle, test_model, ...)
 # TODO finalize confgis.json then: git update-index --assume-unchanged path/to/file.txt
-
-
-# BEST CONFIGS
-  # ! means not enough contestants, * means confident
-# nohearing v1
-#   !apartment: img=120x160x1,attention=12,hidden=1024,z=39,seq_len=30,n_rnn=3-3,v1=True,nv1write=3,cw=1.0,fs=44100,hearing=False,sslen=3x3*8*1.2,mfccs=1.0-100-0.025,wg=0.002-64-0.01_properreader_residual_apartment
-#   *simple hand: img=120x160x1,attention=20,hidden=1024,z=39,seq_len=30,n_rnn=(3, 3),v1=True,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x3*8*1.2,mfccs=0.1-100-0.025,wg=0.002-64-0.01_properreader_residual
-#       sslen to 10ms
-#       seq to 36
-
-# nohearing nov1
-#   !apartment: img=120x160x1,attention=20,hidden=1024,z=39,seq_len=20,n_rnn=(3, 3),v1=False,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x3*8*1.2,mfccs=0.1-100-0.025,wg=0.002-64-0.01_properreader_residual_apartment3ss
-#   *simple hand: img=120x160x1,attention=20,hidden=1024,z=26,seq_len=20,n_rnn=(3, 3),v1=False,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=2x3*8*1.2,mfccs=0.1-100-0.025,wg=0.002-64-0.01_properreader_residual
-#       sslen to 10ms
-#   *simple hand realistic: img=120x160x1,attention=12,hidden=1024,z=66,seq_len=12,n_rnn=3-3,v1=False,nv1write=3,cw=0.1,fs=22050,hearing=False,sslen=2x10*10*1.5,constphase=True,mfccs=100-0.025-0.002,wg=64-0.01-0.002
-#       fs to 44100
-
-# hearing nov1
-#   apartment:
-#   simple hand:
-
 
 
 AUDIO_GEN_PARAMS = {

@@ -1,18 +1,13 @@
-import os, sys
-import tables
-from glob import glob
-import numpy as np
-import tensorflow as tf
+import sys
 from skimage import img_as_float
 from skimage.transform import resize
 from scipy.misc import imread, imsave
-import matplotlib.pyplot as plt
 
 
 images_path = sys.argv[1:-1]  # wildcards like path/to/images*.png
 path_to_save = sys.argv[-1]  # like path/to/output/
 
-# take img, resize to 160x120 if not that size
+# take img, resize it to 160x120
 # possible sizes: 160x120, 100x100, 320x240
 i = 0
 for image_path in images_path:
@@ -23,9 +18,11 @@ for image_path in images_path:
         img = img_as_float(img)
         if len(img.shape) == 3:  # RGB to grayscale
             img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
+
+        # resize
         if img.shape[0] == img.shape[1]:
             img = resize(img, [160, 160])
-            img = img[20:-20, :]  # cut 40 off vertically
+            img = img[20:-20, :]  # cut 40 off vertically, ratio intact
         elif img.shape[0] == 240 and img.shape[1] == 320:
             img = resize(img, [120, 160], anti_aliasing=True)
         elif img.shape[0] == 120 and img.shape[1] == 160:

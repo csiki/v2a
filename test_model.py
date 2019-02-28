@@ -5,7 +5,6 @@ import sys
 import cv2
 import numpy as np
 import simpleaudio as saudio
-from run_proto import CFG_TO_MODEL, CFG_TO_SOUND_LEN
 
 
 # TODO record key strokes for identification of soundscapes, stored with the corresponding image

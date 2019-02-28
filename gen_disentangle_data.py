@@ -2,8 +2,6 @@ from aev2a import *
 import sys
 import tables
 import numpy as np
-import pickle
-from run_proto import CFG_TO_MODEL, CFG_TO_SOUND_LEN
 
 # run as python3.6 test_model.py <cfg_name> [<test|train>] [<rand|seq>]
 

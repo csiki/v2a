@@ -7,7 +7,6 @@ import cv2
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import mutual_info_score
 import tensorflow as tf
-from mpl_toolkits import mplot3d
 from tensorflow.contrib.tensorboard.plugins import projector
 from numpy import pi
 
@@ -547,7 +546,7 @@ if ANAL['5']:
             cv2.imshow("canvas", c)
             if cv2.waitKey(1) == 27:  # esc
                 break
-            # time.sleep(0.2)
+            time.sleep(0.2)
 
         # invert, sum, invert
         canvas = np.stack(canvas, axis=0)

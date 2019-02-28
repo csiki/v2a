@@ -1,7 +1,5 @@
-import numpy as np
 import tensorflow as tf
 import wavegan
-import tcn
 
 
 def lstm_hearing(soundscape, window_len, n_hidden, batch_size, share_parameters):

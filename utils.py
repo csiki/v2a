@@ -2,8 +2,6 @@ import os
 import scipy.misc
 import numpy as np
 from skimage import img_as_float
-from skimage.transform import resize
-import _pickle as cPickle
 from tensorflow.python.client import device_lib
 import tensorflow as tf
 
