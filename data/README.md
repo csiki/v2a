@@ -1,4 +1,4 @@
-#How to generate a dataset from videos
+# How to generate a dataset from videos
 
 0. Record videos of the visual environment, producing mp4 files
 1. Generate images: `./gen_imgs_from_vids.sh images/out/path/ wildcard/path/to/videos/*.mp4`

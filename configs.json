@@ -8,24 +8,24 @@
                 1
             ],
             "attention_n": 20,
-            "n_hidden": 32,
-            "n_z": 32,
+            "n_hidden": 1024,
+            "n_z": 45,
             "z_indirection": false,
-            "sequence_length": 4,
+            "sequence_length": 26,
             "batch_size": 64,
             "n_rnn_cells": [
-                2,
-                2
+                3,
+                3
             ],
             "learning_rate": 5e-05,
             "nonrecurrent_dec": false,
-            "residual_encoder": true,
+            "residual_encoder": false,
             "hearing_decoder": false,
             "v1_gaussian": true,
             "n_v1_write": 3,
             "kl_weight": 0.1,
             "congr_weight": 0.1,
-            "fs": 16000,
+            "fs": 44100,
             "audio_gen": {
                 "binaural": true,
                 "varying_delta": true,
@@ -58,7 +58,7 @@
             }
         },
         "models": [
-            "img=120x160x1,attention=20,hidden=32,z=32,seq_len=4,n_rnn=2-2,v1=True,nv1write=3,cw=0.1,fs=16000,hearing=False,sslen=3x4*8*1.5,constphase=True,mfccs=100-0.01-0.002,wg=64-0.01-0.002"
+            "img=120x160x1,attention=20,hidden=1024,z=45,seq_len=26,n_rnn=3-3,v1=True,nv1write=3,cw=0.1,fs=44100,hearing=False,sslen=3x4*8*1.5,constphase=True,mfccs=100-0.01-0.002,wg=64-0.01-0.002"
         ]
     }
 }

@@ -54,7 +54,8 @@ from a set of images or videos. Consult the readme under `data/` for further inf
 Before starting the training, a configuration has to be defined that contains the hyperparameters of the autoencoder.
 All configurations should be specified in the `configurations.json` file. You could just use the `default`
 configuration already present in the json file, or create a new one according to the default. In `config.py`
-you may find a short description for each parameter; for further detail check the [thesis](TODO).
+you may find a short description for each parameter; for further details check the [thesis](TODO).
+The default config contains the same parameters as we used in the study to learn hand posture images.
 
 To start the training process, just run the `aev2a.py` script like so:
 ```bash
@@ -77,6 +78,8 @@ to assess the efficacy of your model, run it like:
 tensorboard --logdir=./summary  # if you are in the root folder of v2a
 # now open a web browser and type the url 'localhost:6006' to open the dashboard
 ```
+
+[TODO why the long model names --> so easy to search in tensorboard]
 
 ### Video generation
 If you installed the optional packages above, you can generate videos that play the soundscapes alongside
