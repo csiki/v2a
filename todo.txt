@@ -2,7 +2,7 @@
 # TODO migration to github
 # write about how to run tensorboard
 # details on how to run scripts, step-by-step
-# TODO implement other edge detection algos
+# TODO implement other (sobel) edge detection algos in run_proto and scale_imgs.py -> no need for matlab
 
 # TODO PRIMARY
 # TODO adaptive learning rate

@@ -45,6 +45,8 @@ sudo pip3 install csv simpleaudio scipy scikit-learn pymatlab
 
 
 ## How to run
+
+### Training
 AEV2A is trained unsupervised, meaning, the image set is the only data needed to train the network.
 You can either download the hand gesture or table dataset used in the study, or generate your own
 from a set of images or videos. Consult the readme under `data/` for further info.
@@ -64,10 +66,42 @@ as (in order): `number of training epochs`, `frequency of logging` (number of tr
 the same configuration. All of the command line arguments are optional, so for testing purposes you could just
 simply run the script like: `python3.6 aev2a.py`.
 
+### Tensorboard analysis
+If you run the training with a `frequency of logging` greater than zero (100 by default), tensorboard summaries
+are produced and stored under `summary/`. Summaries include training and test loss plots,
+sound property (frequency, amplitude, source location) distributions, drawn image and synthesized audio.
+[Tensorboard](https://www.tensorflow.org/guide/summaries_and_tensorboard) provides an easy, fast way
+to assess the efficacy of your model, run it like:
 
-[TOOD high lvl: test network, run proto, analyze image-to-sound]
+```bash
+tensorboard --logdir=./summary  # if you are in the root folder of v2a
+# now open a web browser and type the url 'localhost:6006' to open the dashboard
+```
+
+### Video generation
+If you installed the optional packages above, you can generate videos that play the soundscapes alongside
+the drawing, as a mean for intuitively assessing the sound-to-visual correspondence.
+Videos are stored under the `vids/` folder, one video for each input image of one batch
+and one extra that is just the concatenation of the rest.
+ 
+```bash
+python3.6 aev2a.py config_name data/dataset.hdf5 test 0 0 model_name_postfix
+```
+
+If you have only one model for the given configuration set, you may leave out the last three parameters.
+
+### Live demo
+You may run your AEV2A model live by taking video with your Android phone and listening to the corresponding
+audio representation at the same time. In our implementation, the captured video is streamed to your PC
+where it gets translated into sound so you may listen to it. Ideally, you would place your phone
+inside a VR helmet/cardbox, fastening the camera at eye level; headphones are essential.
+
+[TODO run either sobel or matlab]
+
+[ToDo high lvl: run proto, analyze image-to-sound]
 
 ## What's what
+run audio_gen separately to test different soundscapes
 [TODO very short descr of each folder/file]
 
 ## Datasets

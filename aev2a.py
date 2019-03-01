@@ -653,7 +653,7 @@ class Draw:
                         ims(os.path.join(os.getcwd(), 'results', self.model_name, str(e)+'-'+str(i)+'-step-'+str(cs_iter)+'.png'),
                             merge_color(results_square, [8, self.batch_size // 8]))
 
-    def gen_vids(self, dataset, training_path=None, output_prefix=''):
+    def gen_vids(self, dataset, training_path, cfg_id, model_name_postfix=''):
 
         # pass random batch, save output images and sounds, concat images and add sound w/ ffmpeg
         training_path = training_path or os.path.join(os.getcwd(), 'training')
@@ -677,23 +677,28 @@ class Draw:
 
             # iterate through all images at this cs_iter, and save them temporaly
             for idx, img in enumerate(canvas_images):
-                ims('vids/' + output_prefix + 'img_{0}_iter_{1:0=2d}.png'.format(idx, cs_iter), img)
+                ims('vids/' + cfg_id + 'img_{0}_iter_{1:0=2d}.png'.format(idx, cs_iter), img)
 
         # save sounds
         for i in range(self.batch_size):
-            wavfile.write('vids/' + output_prefix + 'sound_{}.wav'.format(i), self.fs, soundscapes[i])
+            wavfile.write('vids/' + cfg_id + 'sound_{}.wav'.format(i), self.fs, soundscapes[i])
 
-        # concat imgs + add sound, use ffmpeg from command line
+        # concat imgs + add sound, run ffmpeg from command line
         nimg_per_sec = int(1. / (self.soundscape_len / self.fs))
+        vid_paths = []
         for i in range(self.batch_size):
-            os.system('ffmpeg -r {} -i vids/{}img_{}_iter_%02d.png -i vids/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y vids/{}movie_{}.mp4'
-                      .format(nimg_per_sec, output_prefix, i, output_prefix, i, output_prefix, i))  # mpeg4 if libx264 does not work
+            vid_path = 'vids/{}movie_{}_{}.mp4'.format(cfg_id, model_name_postfix, i)
+            os.system('ffmpeg -r {} -i vids/{}img_{}_iter_%02d.png -i vids/{}sound_{}.wav -shortest -strict -2 -vcodec libx264 -y ' + vid_path
+                      .format(nimg_per_sec, cfg_id, i, cfg_id, i, cfg_id, i))  # mpeg4 if libx264 does not work
+            vid_paths.append("file './" + vid_path + "'")
 
-        # concat videos together to a single video; first fill mylist.txt with the list of videos
-        # ffmpeg -f concat -safe 0 -i mylist.txt -c copy concat/table3-nov1-8seq.mp4
+        # concat videos together to a single video; fill txt with the list of videos and run ffmpeg
+        with open('vids/vid_list.txt', 'wt') as f:
+            f.writelines(vid_paths)
+        os.system('ffmpeg -f concat -safe 0 -i vids/vid_list.txt -c copy vids/{}_{}.mp4'.format(cfg_id, model_name_postfix))
 
         # remove temporal images and sounds
-        os.system('rm vids/*.png vids/*.wav')
+        os.system('rm vids/*.png vids/*.wav vids/vid_list.txt')
 
     def prepare_run_single(self, training_path):
         saver = tf.train.Saver(max_to_keep=2)
@@ -800,5 +805,5 @@ if __name__ == '__main__':
     if train_or_test:
         model.train(dataset, restore=True, nepoch=nepoch, log_every=log_every, save_every=save_every)
     else:
-        model.gen_vids(dataset, output_prefix=config_id, training_path='training/')
+        model.gen_vids(dataset, cfg_id=config_id, training_path='training/')
         model.view(dataset)

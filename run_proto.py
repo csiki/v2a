@@ -6,28 +6,15 @@ import numpy as np
 import pymatlab
 from skimage.transform import resize
 from collections import deque
-
 import simpleaudio as saudio
-# from wave import open as waveOpen
-from ossaudiodev import open as ossOpen
-from ossaudiodev import AFMT_S16_NE
 
 
-def play_sound(soundscape):  # FIXME depricated, too low level
-    dsp = ossOpen('/dev/dsp', 'w')
-    dsp.setparameters(AFMT_S16_NE, nchannel, fs)
-    dsp.write(soundscape.tobytes())
-    dsp.close()
-
-
-# TODO more hints on how to run
 # TODO implement other edge detection algos
-# if model is not downloaded yet, run dl_and_test.sh
-# matlab has to run, start it from console like: matlab &
-# run this script after starting IP Webcam app on mobile
-#     USB tethering has to be turned on + mobile connected to PC
-#     both mobile data and wifi should be turned off
-# usage: python3.6 run_proto.py <cfg_name> <mobile_ip> [test:optional]
+# Matlab has to run in the background
+# Run this script after starting IP Webcam app on your mobile
+#     USB tethering has to be turned on and mobile connected to PC via USB
+#     Both mobile data and wifi should be turned off
+# Usage: python3.6 run_proto.py test|fast mobile_ip cfg_id model_name_postfix
 
 
 if __name__ == '__main__':
@@ -36,9 +23,10 @@ if __name__ == '__main__':
         exit(1)
 
     # params
-    config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
+    test_run = sys.argv[1] == 'test'
     mobile_ip = sys.argv[2]
-    test_run = sys.argv[3] == 'test'
+    config_id = sys.argv[3] if len(sys.argv) > 3 else 'default'  # have to be defined in configs.json
+    model_name_postfix = sys.argv[4] if len(sys.argv) > 4 else ''
     shot_url = "http://" + mobile_ip + ":8080/shot.jpg"
 
     network_params = load_config(config_id)
@@ -49,7 +37,7 @@ if __name__ == '__main__':
 
     # build matlab session
     matlab_session = pymatlab.session_factory()
-    matlab_session.run('cd matlab/faster_corf')  # TODO test
+    matlab_session.run('addpath matlab/faster_corf')  # TODO test
     print('MATLAB SESSION ESTABLISHED')
 
     # build V2A model
@@ -70,7 +58,7 @@ if __name__ == '__main__':
         while True:
 
             if (time.time() - sound_start) < (sound_len - np.mean(run_times)):  # play_obj and play_obj.is_playing():
-                time.sleep(0.00001)
+                # time.sleep(0.00001)
                 continue
 
             comp_start = time.time()
