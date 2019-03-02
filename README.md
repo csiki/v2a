@@ -46,11 +46,17 @@ sudo pip3 install csv simpleaudio scipy scikit-learn pymatlab
 
 ## How to run
 
-### Training
+### Dataset
 AEV2A is trained unsupervised, meaning, the image set is the only data needed to train the network.
 You can either download the hand gesture or table dataset used in the study, or generate your own
-from a set of images or videos. Consult the readme under `data/` for further info.
+from a set of images or videos. Consult the readme under [`data/`](data/README.md) for further info.
 
+![](https://i.imgur.com/8R9gd9F.png) ![](https://i.imgur.com/gyJX60s.png) ![](https://i.imgur.com/O5obnlu.png) ![](https://i.imgur.com/c2NUw9N.png)
+
+The hand gesture dataset includes contour images of 15 different postures, in varying horizontal and vertical positions.
+The table image set depicts contours of either a beer can or a gear on a surface, again in varying positions.
+
+### Training
 Before starting the training, a configuration has to be defined that contains the hyperparameters of the autoencoder.
 All configurations should be specified in the `configurations.json` file. You could just use the `default`
 configuration already present in the json file, or create a new one according to the default. In `config.py`
@@ -103,24 +109,22 @@ inside a VR helmet/cardbox, fastening the camera at eye level; headphones are es
 
 [ToDo high lvl: run proto, analyze image-to-sound]
 
-## What's what
+### Image-to-sound conversion analysis
+
+[TODO]
+
+### What else
 run audio_gen separately to test different soundscapes
 [TODO very short descr of each folder/file]
 
-## Datasets
-[TODO short description, more under /data]
+## Model structure
+_x_ is the input image, _c<sub>t</sub>_ is the state of the canvas at iteration _t_.
+_h<sub>t</sub>_ is the hidden state of either the encoder or the decoder RNN (LSTM).
+_z<sub>t</sub>_ is drawn from a Normal distribution parametrized by the output of the
+encoder network. _a<sub>t</sub>_ is the audio representation, that is, series of
+frequency, amplitude and spatial modulated soundstreams.
 
-[TODO image of hands dataset]
-
-## Training
-
-### Tensorboard analysis
-
-## Testing
-
-## Running live
-
-## Image-to-sound conversion analysis
+![](https://i.imgur.com/Q0YAAna.png)
 
 ## Citation
 ```
