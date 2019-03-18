@@ -1,13 +1,12 @@
 # How to generate a dataset from videos
 
-0. Record videos of the visual environment, producing mp4 files
+0. Record videos of the visual environment, yielding mp4 files
 1. Generate images: `./gen_imgs_from_vids.sh images/out/path/ wildcard/path/to/videos/*.mp4`
-2. Turn images into black and white and scale them to 160x120:
-`scale_imgs.py wildcard/to/images*.jpg path/to/output/`
-3. A) Run Matlab script `convertAllInFolder2DPar.m` in parallel under `matlab/faster_corf/` to extract contour
-(see instruction in script)  
-   B) Run `edge_detection.py` to apply a somewhat inferior edge detection algorithm called Sobel:
-   `edge_detection.py path/to/scaled/imgs*.jpg path/to/output/`
+2. Turn images into black and white, scale them to 160x120, then apply edge detection if anything but CORF is used:
+`prepare_imgs.py corf|sobel wildcard/to/images*.jpg path/to/output/`
+3. If you chose CORF as your edge detection algorithm in the previous step, run Matlab script
+`convertAllInFolder2DPar.m` in parallel under `matlab/faster_corf/` to extract contour
+(see instruction in script), else just continue on with step 4
 4. Enrich dataset with mirror images if applicable: run `mirror_imgs.py wildcard/to/images*.png`
 5. Merge images into hdf5 file: `merge_imgs.py path/to/contour/imgs*.jpg output/path/something.hdf5`
 

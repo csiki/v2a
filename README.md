@@ -14,6 +14,9 @@ is based on the [DRAW](https://arxiv.org/abs/1502.04623) model; the repository f
 initially cloned can be found [here](https://github.com/kvfrans/draw-color). AEV2A further builds on
 [WaveGAN](https://arxiv.org/abs/1802.04208) (repo [here](https://github.com/chrisdonahue/wavegan)).
 
+Videos on the visual-auditory correspondence of two models have been compiled and merged. Here are
+the videos for the [hand dataset](https://youtu.be/EGPz4HIFsCM)
+and [table dataset](https://youtu.be/4IMlWaVQ2fk) trained models.
 For further details check this [blog post](TODO) or the thesis [here](TODO).
 
 ![](https://i.imgur.com/ecdDO4s.png) ![](https://i.imgur.com/ALHRqWu.png) ![](https://media.giphy.com/media/2tKDQQuaHNvRGfYQm5/giphy.gif) ![](https://i.imgur.com/11CYllL.png) ![](https://media.giphy.com/media/1wXgFezvfCkjCo2aUh/giphy.gif)
@@ -30,7 +33,7 @@ For further information [consult the paper](https://link.springer.com/article/10
 
 - `python >=3.6`, \[`ffmpeg`, `opencv`\]
 - Python packages: `numpy`, `scikit-image`, `matplotlib`, `tables`, \[`csv`, `simpleaudio`, `scipy`, `scikit-learn`, `pymatlab`\]
-- [`Tensorflow 1.9.0`](https://www.tensorflow.org/install): other versions may work too; GPU package recommended.
+- [`Tensorflow 1.9.x`](https://www.tensorflow.org/install): other versions may work too; GPU package recommended.
 ```bash
 sudo apt-get install python3.6
 sudo python3.6 -m pip install
@@ -65,13 +68,13 @@ The default config contains the same parameters as we used in the study to learn
 
 To start the training process, just run the `aev2a.py` script like so:
 ```bash
-python3.6 aev2a.py config_name data/dataset.hdf5 train
+python aev2a.py config_name data/dataset.hdf5 train
 ```
 You may substitute the name of the configuration and the dataset path, and could add further parameters
 as (in order): `number of training epochs`, `frequency of logging` (number of trained batches between logging),
 `frequency of saving the model` and a `postfix string for the model` in case there are multiple models with
 the same configuration. All of the command line arguments are optional, so for testing purposes you could just
-simply run the script like: `python3.6 aev2a.py`.
+simply run the script like: `python aev2a.py`.
 
 ### Tensorboard analysis
 If you run the training with a `frequency of logging` greater than zero (100 by default), tensorboard summaries
@@ -85,7 +88,8 @@ tensorboard --logdir=./summary  # if you are in the root folder of v2a
 # now open a web browser and type the url 'localhost:6006' to open the dashboard
 ```
 
-[TODO why the long model names --> so easy to search in tensorboard]
+The long model names, defined by the model parameters, come handy in tensorboard, where one can filter
+trained models using regex for the purpose of comparing them.
 
 ### Video generation
 If you installed the optional packages above, you can generate videos that play the soundscapes alongside
@@ -94,10 +98,23 @@ Videos are stored under the `vids/` folder, one video for each input image of on
 and one extra that is just the concatenation of the rest.
  
 ```bash
-python3.6 aev2a.py config_name data/dataset.hdf5 test 0 0 model_name_postfix
+python aev2a.py config_name data/dataset.hdf5 test 0 0 model_name_postfix
 ```
 
 If you have only one model for the given configuration set, you may leave out the last three parameters.
+
+### Demoing the model on images
+The `test_on_imgs.py` script initiates a selected trained model, feeds images to it from the given dataset
+and plays the soundscape synthesized from the image. You can change images front and back by pressing `D` and `A` keys.
+You can select whether the sequence of images are chosen randomly or are predetermined. It may take the input images
+from either the train or the test set.
+
+```bash
+python test_model.py cfg_name test seq model_name_postfix
+```
+
+This script could be used as an experimental tool, in which the presented image has to be named by the listener, and
+thus, the discrimination accuracy can be assessed.
 
 ### Live demo
 You may run your AEV2A model live by taking video with your Android phone and listening to the corresponding
@@ -105,9 +122,25 @@ audio representation at the same time. In our implementation, the captured video
 where it gets translated into sound so you may listen to it. Ideally, you would place your phone
 inside a VR helmet/cardbox, fastening the camera at eye level; headphones are essential.
 
-[TODO run either sobel or matlab]
+`run_proto.py` runs the live demo. Similarly to the dataset generation phase, you can set whether to
+apply the more sophisticated CORF edge detection algorithm (Matlab required) or just Sobel.
 
-[ToDo high lvl: run proto, analyze image-to-sound]
+To set up your Android phone with the trained AEV2A model, you first need to:
+0. Install the IP Webcam app from Google Play, launch it and set the video resolution to `320x240` under Video preferences.
+1. Connect your phone via USB to the computer that runs the script
+2. Turn on USB tethering on the phone, but turn off WiFi and mobile data
+3. Launch the IP Webcam app and press "Start server".
+4. Start the `run_proto.py` script with parameters providing whether to run in "test" or "fast" mode
+(test mode shows how the contour image and the decoder reconstructed image looks like real time),
+the edge detection algo to apply, the mobile ip of your phone (displayed in the IP Webcam app),
+the name of the model configuration and postfix if used any.
+
+```bash
+python run_proto.py test corf mobile_ip config_name model_name_postfix
+```
+
+After the model is loaded, you should be seeing three windows of images showing the original, contour and
+reconstruction stages. The audio should be playing at the same time, too.
 
 ### Image-to-sound conversion analysis
 

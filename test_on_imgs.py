@@ -15,7 +15,7 @@ import simpleaudio as saudio
 # select whether to choose random images from the set, or sequence from the beginning
 # right arrow moves to the next image (random or next in sequence), left arrow moves to previous, esc exits
 # should draw iteration by iteration and play sound at the same time
-# usage: python test_model.py <cfg_name> [<test|train>] [<rand|seq>]
+# usage: python test_on_imgs.py cfg_name test|train rand|seq model_name_postfix
 
 if __name__ == '__main__':
 
