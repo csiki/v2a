@@ -15,7 +15,7 @@ from skimage.filters import sobel
 # Run this script after starting IP Webcam app on your Android phone
 #     USB tethering has to be turned on and the phone connected to PC via USB
 #     Both mobile data and wifi should be turned off on the phone
-# Usage: python3.6 run_proto.py test|fast corf|sobel mobile_ip cfg_id model_name_postfix
+# Usage: python3.6 run_proto.py test|fast corf|sobel|nothing mobile_ip cfg_id model_name_postfix
 
 
 if __name__ == '__main__':
@@ -81,7 +81,7 @@ if __name__ == '__main__':
             elif edge_detection == 'sobel':
                 contour = sobel(img)
             else:
-                raise ValueError('Edge detection algorithm can either be "corf" or "sobel", not {}!'.format(edge_detection))
+                contour = img  # no edge detection applied
 
             # contour -> sound
             if test_run:
