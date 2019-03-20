@@ -98,10 +98,10 @@ ANAL = {'1': False, '2': False, '3': False, '4': False, '5': False, '4/labeling'
         '5/draw_hand': False, '5/hist': False, '5/lame_plot': False, '6': True, '6/labeling': False,
         '6/create_sprite': False, '6/embed': False, '7': False, '8': True}
 
-config_id = sys.argv[1] if len(sys.argv) > 1 else 'default'  # have to be defined in configs.json
-test_set = sys.argv[2] == 'test' if len(sys.argv) > 2 else True
-table_cfg = sys.argv[3] if len(sys.argv) > 3 else 'default'
-hand_cfg = sys.argv[4] if len(sys.argv) > 4 else 'default'
+# run like: python3.6 disentangle_anal.py cfg_name train|test model1_cfg_name model2_cfg_name
+test_set = sys.argv[1] == 'test' if len(sys.argv) > 1 else True
+table_cfg = sys.argv[2] if len(sys.argv) > 2 else 'default'
+hand_cfg = sys.argv[3] if len(sys.argv) > 3 else 'default'
 
 set_text = '_test' if test_set else '_train'
 table_data_path = 'data/gendata_' + table_cfg + set_text + '.hdf5'

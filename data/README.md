@@ -3,7 +3,8 @@
 0. Record videos of the visual environment, yielding mp4 files
 1. Generate images: `./gen_imgs_from_vids.sh images/out/path/ wildcard/path/to/videos/*.mp4`
 2. Turn images into black and white, scale them to 160x120, then apply edge detection if anything but CORF is used:
-`prepare_imgs.py corf|sobel wildcard/to/images*.jpg path/to/output/`
+`prepare_imgs.py corf|sobel wildcard/to/images*.jpg path/to/output/`. If you choose NOT to perform edge detection
+on your images at all, just select corf, and skip step 3.
 3. If you chose CORF as your edge detection algorithm in the previous step, run Matlab script
 `convertAllInFolder2DPar.m` in parallel under `matlab/faster_corf/` to extract contour
 (see instruction in script), else just continue on with step 4

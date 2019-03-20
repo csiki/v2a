@@ -21,6 +21,11 @@ For further details check this [blog post](TODO) or the thesis [here](TODO).
 
 ![](https://i.imgur.com/ecdDO4s.png) ![](https://i.imgur.com/ALHRqWu.png) ![](https://media.giphy.com/media/2tKDQQuaHNvRGfYQm5/giphy.gif) ![](https://i.imgur.com/11CYllL.png) ![](https://media.giphy.com/media/1wXgFezvfCkjCo2aUh/giphy.gif)
 
+*Have fun with the tools given here!*
+Record a dataset from the screenshots of a monochrome old mobile game for example,
+and train a AEV2A model on it. Who knows, you may end up with a new audio encoded
+game that blind (or even sighted) people can enjoy!
+
 ## Requirements
 Implementation has been tested on Linux (Ubuntu), but the core learning parts should run regardless of the operating system.
 The following instructions are for Ubuntu only. Every library that's in brackets are not necessary for training purposes,
@@ -103,14 +108,14 @@ python aev2a.py config_name data/dataset.hdf5 test 0 0 model_name_postfix
 
 If you have only one model for the given configuration set, you may leave out the last three parameters.
 
-### Demoing the model on images
+### Testing on images
 The `test_on_imgs.py` script initiates a selected trained model, feeds images to it from the given dataset
 and plays the soundscape synthesized from the image. You can change images front and back by pressing `D` and `A` keys.
 You can select whether the sequence of images are chosen randomly or are predetermined. It may take the input images
 from either the train or the test set.
 
 ```bash
-python test_model.py cfg_name test seq model_name_postfix
+python test_on_imgs.py cfg_name test seq model_name_postfix
 ```
 
 This script could be used as an experimental tool, in which the presented image has to be named by the listener, and
@@ -142,13 +147,50 @@ python run_proto.py test corf mobile_ip config_name model_name_postfix
 After the model is loaded, you should be seeing three windows of images showing the original, contour and
 reconstruction stages. The audio should be playing at the same time, too.
 
-### Image-to-sound conversion analysis
+### Image-to-sound conversion disentanglement
+In order to attain a high level, intuitive understanding of the V2A mapping, correlations between visual and
+auditory features can be computed, and such feature pairs may be plotted together to see the conversion
+logic behind the AEV2A model. By first labeling (a subset of) the images, you can switch between labels and
+listen to the sound representation of instances to further build your intuition.
 
-[TODO]
+Run `gen_disentangle_data.py` first to generate a dataset of drawings and corresponding sound features
+for further analysis:
+
+```bash
+python gen_disentangle_data.py cfg_name test seq model_name_postfix
+```
+
+`disentangle_anal.py` performs the analysis part. The script has multiple stages that you can activate
+or deactivate by editing the `ANAL` dictionary. The script originally was designed to examine two models,
+one trained on the hand, the other on the table dataset. You may provide the same config name for both
+`model1_cfg_name` and `model2_cfg_name` command line parameters to limit the analysis to one model:
+
+```bash
+python disentangle_anal.py cfg_name test model1_cfg_name model2_cfg_name
+```
+
+It's essential to have an intuitive understanding of the conversion function, so, when used by blind people,
+it can be described in words, which is shown to lead to rapid learning.
+
 
 ### What else
-run audio_gen separately to test different soundscapes
-[TODO very short descr of each folder/file]
+You may run the `audio_gen.py` script separately to test how different audio generation hyperparameters
+influence the resulting soundscapes and soundstreams within. Such hyperparameters can be found in the
+beginning of the script.
+
+Hearing models are defined in `hearing.py`.
+
+`tf_carfac` is a Tensorflow implementation of the [CARFAC cochlear model](https://ai.google/research/pubs/pub37215).
+Building and running the model takes way too much memory and time, even for short sound bits.
+So yeah, basically useless, but it's here if you need it.
+
+Trained models are saved under the `training` folder, Tensorboard summaries under `summary`,
+generated videos under `vids`. `results` should contain images of the canvas taken at each
+step of drawing.
+
+Contribute to the project as much as you like!
+If you want to know more, check the [thesis](TODO) or just email me: `mind.is.soft at gmail dot com`.
+
 
 ## Model structure
 _x_ is the input image, _c<sub>t</sub>_ is the state of the canvas at iteration _t_.
@@ -161,5 +203,5 @@ frequency, amplitude and spatial modulated soundstreams.
 
 ## Citation
 ```
-[TODO bibtex]
+[TODO bibtex of thesis once uploaded]
 ```

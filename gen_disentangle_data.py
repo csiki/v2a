@@ -3,7 +3,7 @@ import sys
 import tables
 import numpy as np
 
-# run as python3.6 test_model.py <cfg_name> [<test|train>] [<rand|seq>]
+# run as python3.6 gen_disentangle_data.py cfg_name test|train rand|seq model_name_postfix
 
 
 def img_to_uint(img):

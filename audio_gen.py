@@ -315,10 +315,13 @@ if __name__ == '__main__':
                             batch_size=batch_size)
     rand_inp = rand_gen_input(*placeholders, batch_size, varying_delta, const_phase)
 
+    # change here whether to use a randomly generated input (rand_inp), or a tailored one (inp1)
+    input_used = rand_inp
+
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sound_scape_, t_, df_, da_, dazim_ = sess.run([synth_tensors['bin_sound_scape'], synth_tensors['t'],
-                                                       synth_tensors['df'], synth_tensors['da'], synth_tensors['dazim']], rand_inp)
+                                                       synth_tensors['df'], synth_tensors['da'], synth_tensors['dazim']], input_used)
         print('DF', df_)
         print('DA', da_)
         print('DAZIM', dazim_)
