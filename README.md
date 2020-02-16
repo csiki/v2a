@@ -212,5 +212,5 @@ frequency, amplitude and spatial modulated soundstreams.
 
 ## Citation
 ```
-[TODO bibtex of thesis once uploaded]
+Tóth, Viktor & Laurie, Parkkonen. Autoencoding sensory substitution. (Aalto University, 2019).
 ```
